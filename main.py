@@ -22,7 +22,10 @@ def open_wip_dir() -> None:
         for path in filenames:
             filename = os.path.basename(path)
             doctype_start = f'<!DOCTYPE {get_opening_tag(path)} PUBLIC "-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" "../IADS/dtd/40051D_7_0.dtd" ['
-            if "chap" not in filename.lower() and "production" not in filename.lower() and "entity" not in filename.lower() and "start" not in filename.lower() and "end" not in filename.lower():
+            # if "title page" in filename.lower() or "front cover" in filename.lower():
+            #     with open(path, 'r', encoding='utf-8') as og:
+                    
+            if "chap" not in filename.lower() and "production" not in filename.lower() and "entity" not in filename.lower() and "start" not in filename.lower() and "end" not in filename.lower() and "svg" not in filename.lower() and "title page" not in filename.lower():
                 with open(path, 'r', encoding='utf-8') as original:
                     textbox.insert(END, f'{filename}\n')
                     textbox.insert(END, f'{doctype_start}\n')
@@ -55,7 +58,26 @@ def convert_files() -> None:
     for path in filenames:
         filename = os.path.basename(path)
         doctype_start = f'<!DOCTYPE {get_opening_tag(path)} PUBLIC "-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" "../IADS/dtd/40051D_7_0.dtd" ['
-        if "chap" not in filename.lower() and "production" not in filename.lower() and "entity" not in filename.lower() and "start" not in filename.lower() and "end" not in filename.lower():
+        # if "title page" in filename.lower() or "front cover" in filename.lower():
+        #     with open(path, 'r', encoding='utf-8') as _fin:
+        #         data = _fin.read().splitlines(True)
+        #     _fin.close()
+        #     with open(path, 'w+', encoding='utf-8') as _fout:
+        #          for line in data:
+        #             if line.startswith('<production '):
+        #                 _fout.write('')
+        #             elif line.startswith('<paper.manual '):
+        #                 _fout.write('')
+        #             elif line.startswith('<paper.frnt '):
+        #                 _fout.write('')
+        #             if '<graphic ' in line:
+        #                 boardno = re.findall(r'".+"', line)
+        #                 entity = f'\t<!ENTITY {boardno[0][1:-1]} SYSTEM "graphics-SVG/{boardno[0][1:-1]}.svg" NDATA svg>'
+        #     _fout.write(f'{xml_tag}\n{doctype_start}\n')
+        #     _fout.write(entity)
+        #     _fout.writelines(data[1:])
+        #     _fout.close()
+        if "chap" not in filename.lower() and "production" not in filename.lower() and "entity" not in filename.lower() and "start" not in filename.lower() and "end" not in filename.lower() and "svg" not in filename.lower():
             with open(path, 'r', encoding='utf-8') as fin:
                 data = fin.read().splitlines(True)
             with open(path, 'w+', encoding='utf-8') as fout:
@@ -76,6 +98,8 @@ def convert_files() -> None:
                 fout.write(']>\n')
                 fout.writelines(data[1:])
             fout.close()
+        elif "chap" in filename.lower() or "entity" in filename.lower() or "start" in filename.lower() or "end" in filename.lower() or "svg" in filename.lower():
+            os.remove(path)
         entities = []
     messagebox.showinfo('SUCCESS', 'Files converted successfully')
 
