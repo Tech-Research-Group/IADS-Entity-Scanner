@@ -11,6 +11,7 @@ bad_terms = ['chap', 'production', 'entity', 'start', 'end']
 
 def open_wip_dir() -> None:
     """Opens TM WIP folder and creates a production.xml file an IADS project."""
+    textbox.delete('1.0', END)
     global entities
     global filenames
     entity = ''
@@ -18,14 +19,13 @@ def open_wip_dir() -> None:
 
     if filenames := filedialog.askopenfilenames():
         doctype_end = ']>'
-        # convert_btn.configure(state='normal')
         for path in filenames:
             filename = os.path.basename(path)
-            doctype_start = f'<!DOCTYPE {get_opening_tag(path)} PUBLIC "-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" "../IADS/dtd/40051D_7_0.dtd" ['
-            # if "title page" in filename.lower() or "front cover" in filename.lower():
-            #     with open(path, 'r', encoding='utf-8') as og:
-                    
-            if "chap" not in filename.lower() and "production" not in filename.lower() and "entity" not in filename.lower() and "start" not in filename.lower() and "end" not in filename.lower() and "svg" not in filename.lower() and "title page" not in filename.lower():
+            if "chap" not in filename.lower() and "production" not in filename.lower() and "entity" not in filename.lower() and "start" not in filename.lower() and "end" not in filename.lower() and "svg" not in filename.lower() and "tiff" not in filename.lower():
+                if get_opening_tag(path) == "production":
+                    doctype_start = '<!DOCTYPE frntcover PUBLIC "-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" "../IADS/dtd/40051D_7_0.dtd" ['
+                else:
+                    doctype_start = f'<!DOCTYPE {get_opening_tag(path)} PUBLIC "-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" "../IADS/dtd/40051D_7_0.dtd" ['
                 with open(path, 'r', encoding='utf-8') as original:
                     textbox.insert(END, f'{filename}\n')
                     textbox.insert(END, f'{doctype_start}\n')
@@ -46,10 +46,10 @@ def open_wip_dir() -> None:
                     textbox.insert(END, f'{doctype_end}\n\n')
                 original.close()
             entities = []
-    convert_btn.configure(state='normal')
-    
+    update_btn.configure(state='normal')
 
-def convert_files() -> None:
+
+def update_files() -> None:
     """Prepends DOCTYPE tag to each file and adds entities to production.xml file."""
     entity = ''
     entities = []
@@ -57,27 +57,26 @@ def convert_files() -> None:
 
     for path in filenames:
         filename = os.path.basename(path)
-        doctype_start = f'<!DOCTYPE {get_opening_tag(path)} PUBLIC "-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" "../IADS/dtd/40051D_7_0.dtd" ['
-        # if "title page" in filename.lower() or "front cover" in filename.lower():
-        #     with open(path, 'r', encoding='utf-8') as _fin:
-        #         data = _fin.read().splitlines(True)
-        #     _fin.close()
-        #     with open(path, 'w+', encoding='utf-8') as _fout:
-        #          for line in data:
-        #             if line.startswith('<production '):
-        #                 _fout.write('')
-        #             elif line.startswith('<paper.manual '):
-        #                 _fout.write('')
-        #             elif line.startswith('<paper.frnt '):
-        #                 _fout.write('')
-        #             if '<graphic ' in line:
-        #                 boardno = re.findall(r'".+"', line)
-        #                 entity = f'\t<!ENTITY {boardno[0][1:-1]} SYSTEM "graphics-SVG/{boardno[0][1:-1]}.svg" NDATA svg>'
-        #     _fout.write(f'{xml_tag}\n{doctype_start}\n')
-        #     _fout.write(entity)
-        #     _fout.writelines(data[1:])
-        #     _fout.close()
-        if "chap" not in filename.lower() and "production" not in filename.lower() and "entity" not in filename.lower() and "start" not in filename.lower() and "end" not in filename.lower() and "svg" not in filename.lower():
+        # TODO Figure out how to remove production, paper.manual and paper.frnt tags from top of title page/front cover WP's
+        if "title page" in filename.lower() or "front cover" in filename.lower():
+            doctype_start = '<!DOCTYPE frntcover PUBLIC "-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" "../IADS/dtd/40051D_7_0.dtd" ['
+            with open(path, 'r', encoding='utf-8') as _fin:
+                data = _fin.read().splitlines(True)
+            _fin.close()
+            with open(path, 'w+', encoding='utf-8') as _fout:
+                for line in data:
+                    # if line.startswith('<production ') or line.startswith('<paper.manual ') or line.startswith('<paper.frnt '):
+                    #     _fout.write('')
+                    if '<graphic ' in line:
+                        boardno = re.findall(r'".+"', line)
+                        entity = f'\t<!ENTITY {boardno[0][1:-1]} SYSTEM "graphics-SVG/{boardno[0][1:-1]}.svg" NDATA svg>'
+                _fout.write(f'{xml_tag}\n{doctype_start}\n')
+                _fout.write(f'{entity}\n')
+                _fout.write(']>\n')
+                _fout.writelines(data[4:])
+            _fout.close()
+        elif "chap" not in filename.lower() and "production" not in filename.lower() and "entity" not in filename.lower() and "start" not in filename.lower() and "end" not in filename.lower() and "svg" not in filename.lower() and "tiff" not in filename.lower():
+            doctype_start = f'<!DOCTYPE {get_opening_tag(path)} PUBLIC "-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" "../IADS/dtd/40051D_7_0.dtd" ['
             with open(path, 'r', encoding='utf-8') as fin:
                 data = fin.read().splitlines(True)
             with open(path, 'w+', encoding='utf-8') as fout:
@@ -98,7 +97,7 @@ def convert_files() -> None:
                 fout.write(']>\n')
                 fout.writelines(data[1:])
             fout.close()
-        elif "chap" in filename.lower() or "entity" in filename.lower() or "start" in filename.lower() or "end" in filename.lower() or "svg" in filename.lower():
+        elif "chap" in filename.lower() or "entity" in filename.lower() or "start" in filename.lower() or "end" in filename.lower() or "svg" in filename.lower() or "tiff" in filename.lower():
             os.remove(path)
         entities = []
     messagebox.showinfo('SUCCESS', 'Files converted successfully')
@@ -112,12 +111,16 @@ def get_opening_tag(path) -> str:
         print(first_line)
         try:
             second_line = line[1]
+            if second_line == '':
+                second_line = line[2]
+            else:
+                second_line = line[1]
         except IndexError as err:
             print(err)
-            # return ''
             second_line = ''
-        line = second_line if '<?xml' in first_line else first_line
-        opening_tag = re.findall(r'([a-zA-Z.]+)', line)
+            messagebox.showerror('ERROR', f'Check {os.path.basename(path)} for errors.')
+    line = second_line if '<?xml' in first_line else first_line
+    opening_tag = re.findall(r'([a-zA-Z.]+)', line)
     original.close()
     print(opening_tag)
     return opening_tag[0]
@@ -137,9 +140,9 @@ wip_btn = ttk.Button(frame_top, text='WIP FOLDER', command=open_wip_dir,
                      bootstyle='success')
 wip_btn.pack(side=LEFT, fill=BOTH, expand=TRUE, padx=10, pady=(10, 0))
 
-convert_btn = ttk.Button(frame_top, text='UPDATE FILES', command=convert_files,
+update_btn = ttk.Button(frame_top, text='UPDATE FILES', command=update_files,
                       bootstyle='success', state='disabled')
-convert_btn.pack(side=RIGHT, fill=BOTH, expand=TRUE, padx=10, pady=(10, 0))
+update_btn.pack(side=RIGHT, fill=BOTH, expand=TRUE, padx=10, pady=(10, 0))
 
 style = ttk.Style()
 textbox = ScrolledText(
