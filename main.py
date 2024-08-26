@@ -10,7 +10,7 @@ from ttkbootstrap.constants import BOTH, BOTTOM, END, FALSE, LEFT, RIGHT, TOP, T
 bad_terms = ['chap', 'production', 'entity', 'start', 'end']
 
 def open_wip_dir() -> None:
-    """Opens TM WIP folder and creates a production.xml file an IADS project."""
+    """Opens an IADS files folder and scans through each WP file."""
     textbox.delete('1.0', END)
     global entities
     global filenames
@@ -21,11 +21,9 @@ def open_wip_dir() -> None:
         doctype_end = ']>'
         for path in filenames:
             filename = os.path.basename(path)
-            if "chap" not in filename.lower() and "production" not in filename.lower() and "entity" not in filename.lower() and "start" not in filename.lower() and "end" not in filename.lower() and "svg" not in filename.lower() and "tiff" not in filename.lower():
-                if get_opening_tag(path) == "production":
-                    doctype_start = '<!DOCTYPE frntcover PUBLIC "-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" "../IADS/dtd/40051D_7_0.dtd" ['
-                else:
-                    doctype_start = f'<!DOCTYPE {get_opening_tag(path)} PUBLIC "-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" "../IADS/dtd/40051D_7_0.dtd" ['
+            if "chap" not in filename.lower() and "catalog" not in filename.lower() and "production" not in filename.lower() and "entity" not in filename.lower() and "start" not in filename.lower() and "end" not in filename.lower() and "svg" not in filename.lower() and "tiff" not in filename.lower():
+                doctype_start = f'<!DOCTYPE {get_opening_tag(path)} PUBLIC "-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" "../dtd/40051D_7_0.dtd" ['
+                
                 with open(path, 'r', encoding='utf-8') as original:
                     textbox.insert(END, f'{filename}\n')
                     textbox.insert(END, f'{doctype_start}\n')
@@ -33,16 +31,21 @@ def open_wip_dir() -> None:
                         if '<graphic ' in line or '<icon-set ' in line or '<symbol ' in line or '<authent ' in line or '<back ' in line:
                             boardno = re.findall(r'".+"', line)
                             try:
-                                entity = f'\t<!ENTITY {boardno[0][1:-1]} SYSTEM "graphics-SVG/{boardno[0][1:-1]}.svg" NDATA svg>'
+                                entity = f'\t<!ENTITY {boardno[0][1:-1]} SYSTEM "../graphics-SVG/{boardno[0][1:-1]}.svg" NDATA svg>'
                                 print(boardno[0][1:-1])
-                                if entity not in entities:
+                                # TODO: Possibly switch entities w/ get_current_entities function in if statement below
+                                # if entity not in entities:
+                                if entity not in get_current_entities(path):
                                     entities.append(f'{entity}\n')
                                     print(entity)
                             except IndexError as err:
                                 print(err)
                     entities = sorted(dict.fromkeys(entities))
-                    for line in entities:
+
+                    for line in get_current_entities(path):
+                        print(line)
                         textbox.insert(END, line)
+                        
                     textbox.insert(END, f'{doctype_end}\n\n')
                 original.close()
             entities = []
@@ -50,33 +53,16 @@ def open_wip_dir() -> None:
 
 
 def update_files() -> None:
-    """Prepends DOCTYPE tag to each file and adds entities to production.xml file."""
+    """Prepends DOCTYPE declaration to each file and adds graphics entities to each WP file."""
     entity = ''
     entities = []
     xml_tag = '<?xml version="1.0" encoding="UTF-8"?>'
 
     for path in filenames:
         filename = os.path.basename(path)
-        # TODO Figure out how to remove production, paper.manual and paper.frnt tags from top of title page/front cover WP's
-        if "title page" in filename.lower() or "front cover" in filename.lower():
-            doctype_start = '<!DOCTYPE frntcover PUBLIC "-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" "../IADS/dtd/40051D_7_0.dtd" ['
-            with open(path, 'r', encoding='utf-8') as _fin:
-                data = _fin.read().splitlines(True)
-            _fin.close()
-            with open(path, 'w+', encoding='utf-8') as _fout:
-                for line in data:
-                    # if line.startswith('<production ') or line.startswith('<paper.manual ') or line.startswith('<paper.frnt '):
-                    #     _fout.write('')
-                    if '<graphic ' in line:
-                        boardno = re.findall(r'".+"', line)
-                        entity = f'\t<!ENTITY {boardno[0][1:-1]} SYSTEM "graphics-SVG/{boardno[0][1:-1]}.svg" NDATA svg>'
-                _fout.write(f'{xml_tag}\n{doctype_start}\n')
-                _fout.write(f'{entity}\n')
-                _fout.write(']>\n')
-                _fout.writelines(data[4:])
-            _fout.close()
-        elif "chap" not in filename.lower() and "production" not in filename.lower() and "entity" not in filename.lower() and "start" not in filename.lower() and "end" not in filename.lower() and "svg" not in filename.lower() and "tiff" not in filename.lower():
-            doctype_start = f'<!DOCTYPE {get_opening_tag(path)} PUBLIC "-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" "../IADS/dtd/40051D_7_0.dtd" ['
+
+        if "chap" not in filename.lower() and "catalog" not in filename.lower() and "production" not in filename.lower() and "entity" not in filename.lower() and "start" not in filename.lower() and "end" not in filename.lower() and "svg" not in filename.lower() and "tiff" not in filename.lower():
+            doctype_start = f'<!DOCTYPE {get_opening_tag(path)} PUBLIC "-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" "../dtd/40051D_7_0.dtd" ['
             with open(path, 'r', encoding='utf-8') as fin:
                 data = fin.read().splitlines(True)
             with open(path, 'w+', encoding='utf-8') as fout:
@@ -84,7 +70,7 @@ def update_files() -> None:
                     if '<graphic ' in line or '<icon-set ' in line or '<symbol ' in line or '<authent ' in line or '<back ' in line:
                         boardno = re.findall(r'".+"', line)
                         try:
-                            entity = f'\t<!ENTITY {boardno[0][1:-1]} SYSTEM "graphics-SVG/{boardno[0][1:-1]}.svg" NDATA svg>'
+                            entity = f'\t<!ENTITY {boardno[0][1:-1]} SYSTEM "../graphics-SVG/{boardno[0][1:-1]}.svg" NDATA svg>'
                             if entity not in entities:
                                 print(boardno[0][1:-1])
                                 entities.append(entity)
@@ -97,38 +83,53 @@ def update_files() -> None:
                 fout.write(']>\n')
                 fout.writelines(data[1:])
             fout.close()
-        elif "chap" in filename.lower() or "entity" in filename.lower() or "start" in filename.lower() or "end" in filename.lower() or "svg" in filename.lower() or "tiff" in filename.lower():
+        elif "chap" in filename.lower() or "catalog" in filename.lower() or "production" in filename.lower() or "entity" in filename.lower() or "start" in filename.lower() or "end" in filename.lower() or "svg" in filename.lower() or "tiff" in filename.lower():
             os.remove(path)
         entities = []
     messagebox.showinfo('SUCCESS', 'Files converted successfully')
 
-
 def get_opening_tag(path) -> str:
     """Function that grabs the text of the opening tag in a work package."""
     with open(path, 'r', encoding='utf-8') as original:
-        line = original.read().splitlines(True)
-        first_line = line[0]
-        print(first_line)
+        lines = original.read().splitlines(True)
+        opening_tag = None  # Initialize opening_tag to None
+
         try:
-            second_line = line[1]
-            if second_line == '':
-                second_line = line[2]
-            else:
-                second_line = line[1]
-        except IndexError as err:
+            for line in lines:
+                if line.startswith('<!DOCTYPE'):
+                    opening_tag = re.findall(r'([a-zA-Z.]+)', line)
+                    break
+
+            if opening_tag is None:
+                raise UnboundLocalError("No opening tag found")
+
+        except UnboundLocalError as err:
             print(err)
-            second_line = ''
             messagebox.showerror('ERROR', f'Check {os.path.basename(path)} for errors.')
-    line = second_line if '<?xml' in first_line else first_line
-    opening_tag = re.findall(r'([a-zA-Z.]+)', line)
+            return None  # Return None to indicate an error condition
+
+    if opening_tag and len(opening_tag) > 1:
+        print(f'|================================== {opening_tag[1].upper()} ==================================|')
+        return opening_tag[1]
+    else:
+        messagebox.showerror('ERROR', 'No valid opening tag found.')
+        return None
+    
+def get_current_entities(path) -> list:
+    """Function that grabs the text of the opening tag in a work package."""
+    with open(path, 'r', encoding='utf-8') as original:
+        line = original.read().splitlines(True)
+        entities = []
+        for line in line:
+            if '<!ENTITY' in line or '%' in line:
+                entities.append(line)
     original.close()
-    print(opening_tag)
-    return opening_tag[0]
+    return entities
 
 
-root = ttk.Window('IADS GRAPHICS SCANNER', 'darkly')
+root = ttk.Window('IADS GRAPHIC SCANNER', 'darkly')
 root.resizable(TRUE, FALSE)
-root.geometry('1250x1500')
+root.geometry('950x750')
 
 frame_top = ttk.Frame(root)
 frame_top.pack(side=TOP, fill=X)
@@ -136,7 +137,7 @@ frame_top.pack(side=TOP, fill=X)
 frame_btm = ttk.Frame(root)
 frame_btm.pack(side=BOTTOM, fill=BOTH, expand=TRUE)
 
-wip_btn = ttk.Button(frame_top, text='WIP FOLDER', command=open_wip_dir,
+wip_btn = ttk.Button(frame_top, text='FILES FOLDER', command=open_wip_dir,
                      bootstyle='success')
 wip_btn.pack(side=LEFT, fill=BOTH, expand=TRUE, padx=10, pady=(10, 0))
 
