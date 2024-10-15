@@ -4,33 +4,54 @@ import contextlib
 import itertools
 import os
 import re
-
-# import timeit
+import threading
+import timeit
 import tkinter.font as tkfont
+
+# from pathlib import Path
 from tkinter import TclError, filedialog, messagebox
 from tkinter import scrolledtext as st
 from typing import Optional
 
-import ttkbootstrap as ttk  # type: ignore
+import ttkbootstrap as ttk
 from PIL import Image, ImageTk
-from ttkbootstrap.constants import DISABLED  # type: ignore
-from ttkbootstrap.constants import BOTH, BOTTOM, END, LEFT, TOP, WORD, E, W, X
+from ttkbootstrap.constants import BOTH, BOTTOM, DISABLED, END, LEFT, TOP, WORD, E, W, X
 
 CUSTOM_TBUTTON = "Custom.TButton"
 ext_entity_dict: dict[str, list[str]] = {}
 files_to_skip = ("chap", "production", "catalog", "entity", "dataset", "toc")
 FOLDER_PATH = ""
-# flake8: disable=E501
-ICON_BITMAP = r"C:\\Users\\nicho\\OneDrive - techresearchgroup.com\\Documents\\GitHub\\IADS-Graphics-Scanner\\logo_TRG.ico"  # pylint: disable=C0301
-IMAGE_PATH = r"C:\\Users\\nicho\\OneDrive - techresearchgroup.com\\Documents\\GitHub\\IADS-Graphics-Scanner\\logo_TRG_text.png"  # pylint: disable=C0301
+ICON_BITMAP = (
+    "C:\\Users\\nicho\\OneDrive - techresearchgroup.com\\Documents\\GitHub\\IADS-Graphics-Scanner\\"
+    "logo_TRG.ico"
+)
+IMAGE_PATH = (
+    "C:\\Users\\nicho\\OneDrive - techresearchgroup.com\\Documents\\GitHub\\IADS-Graphics-Scanner\\"
+    "logo_TRG_text.png"
+)
+
+
+def scan_folder_in_background() -> None:
+    """
+    Starts a new thread to scan the IADS directory in the background.
+
+    This function creates and starts a new thread that runs the `open_iads_dir` function,
+    allowing the folder scanning process to occur without blocking the main program flow.
+
+    Returns:
+        None
+    """
+    thread = threading.Thread(target=open_iads_dir)
+    thread.start()
 
 
 def open_iads_dir() -> None:
     """
-    Opens a directory selection dialog for the user to choose a folder.
-    Clears the content of the textbox and sets the global FOLDER_PATH variable
-    to the selected directory path. If a directory is selected, it scans the
-    IADS folder and updates the button state to normal.
+    Opens a directory selection dialog for the user to choose a folder,
+    deletes the content of the textbox, and scans the selected folder
+    for IADS files. If a folder is selected, it updates the global
+    FOLDER_PATH variable and calls the scan_iads_folder function to
+    process the folder. Finally, it enables the update button.
     Returns:
         None
     """
@@ -41,20 +62,18 @@ def open_iads_dir() -> None:
     if FOLDER_PATH:
         scan_iads_folder(FOLDER_PATH)
         # # Measure the time taken for 10 executions of scan_iads_folder
-        # execution_time = timeit.timeit(
-        #     "scan_iads_folder(FOLDER_PATH)",
-        #     globals=globals(),
-        #     number=5
-        # )
-        # print(f"Execution time: {execution_time} seconds")
+        execution_time = timeit.timeit(
+            "scan_iads_folder(FOLDER_PATH)", globals=globals(), number=10
+        )
+        print(f"Execution time: {execution_time} seconds")
     update_btn.configure(state="normal")
 
 
-def scan_iads_folder(FOLDER_PATH: str) -> None:
+def scan_iads_folder(folder_path: str) -> None:
     """
     Scans the specified IADS folder for entity and work package files.
     This function updates the global `ext_entity_dict` with the results of scanning
-    the entity files in the given folder. It then scans the work package files
+    the entity files in the provided folder path. It then scans the work package files
     using the updated `ext_entity_dict`.
     Args:
         FOLDER_PATH (str): The path to the folder containing the IADS files to be scanned.
@@ -62,11 +81,11 @@ def scan_iads_folder(FOLDER_PATH: str) -> None:
         None
     """
     global ext_entity_dict  # pylint: disable=W0603
-    ext_entity_dict = scan_entity_files(FOLDER_PATH)
-    scan_work_package_files(FOLDER_PATH, ext_entity_dict)
+    ext_entity_dict = scan_entity_files(folder_path)
+    scan_work_package_files(folder_path, ext_entity_dict)
 
 
-def scan_entity_files(FOLDER_PATH: str) -> dict:
+def scan_entity_files(folder_path: str) -> dict:
     """
     Scans a given folder for entity files and extracts external entities from them.
     Args:
@@ -75,17 +94,16 @@ def scan_entity_files(FOLDER_PATH: str) -> dict:
         dict: A dictionary where the keys are the base names of the entity files (without
               extensions) and the values are lists of external entities extracted from those files.
     Notes:
-        - The function searches for files with the ".ent" extension.
-        - It ignores files that do not contain "boilerplate" or "entities" in their paths.
+        - The function looks for files with a ".ent" extension.
+        - It ignores files that do not contain "boilerplate" or "entities" in their path.
         - The function reads each entity file, processes its content to extract external entities,
           and stores the results in a dictionary.
     """
     ext_entity_dict = {}
-    for _dir, _subdir, files in os.walk(FOLDER_PATH):
+    for dir_, _, files in os.walk(folder_path):
         for file in files:
-            path = os.path.join(_dir, file).lower()
+            path = os.path.join(dir_, file).lower()
             if "boilerplate" in path or "entities" in path and file.endswith(".ent"):
-
                 with open(path, "r", encoding="utf-8") as entity_file:
                     entity_list = entity_file.read().splitlines()
                     entity_list = get_external_entities_from_ent_file(entity_list)
@@ -94,20 +112,20 @@ def scan_entity_files(FOLDER_PATH: str) -> dict:
     return ext_entity_dict
 
 
-def scan_work_package_files(FOLDER_PATH: str, ext_entity_dict: dict) -> None:
+def scan_work_package_files(folder_path: str, ext_entity_dict: dict) -> None:
     """
     Scans work package files in the specified folder path for XML files, extracts external entities
     and graphics, and displays them in a textbox widget.
     Args:
         FOLDER_PATH (str): The path to the folder containing work package files.
-        ext_entity_dict (dict): A dictionary to store extracted external entities.
+        ext_entity_dict (dict): A dictionary to store the extracted external entities.
     Returns:
         None
     """
-    for _dir, _subdir, files in os.walk(FOLDER_PATH):
+    for dir_, _, files in os.walk(folder_path):
         for file in files:
             if file.endswith(".xml") and not any(term in file.lower() for term in files_to_skip):
-                path = os.path.join(_dir, file)
+                path = os.path.join(dir_, file)
                 with open(path, "r", encoding="utf-8") as work_package:
                     new_external_entities: list[str] = []
                     new_graphics: list[str] = []
@@ -124,7 +142,7 @@ def scan_work_package_files(FOLDER_PATH: str, ext_entity_dict: dict) -> None:
                     )
 
                     total_entities = list(itertools.chain(new_graphics, new_external_entities))
-                    sorted_entities = sorted(set(total_entities))
+                    sorted_entities: list[str] = sorted(set(total_entities))
 
                     for entity in sorted_entities:
                         textbox.insert(END, f"{entity}\n")
@@ -158,7 +176,10 @@ def scan_work_package_files(FOLDER_PATH: str, ext_entity_dict: dict) -> None:
 
 
 def scan_lines_for_entities(
-    lines: list[str], ext_entity_dict: dict, new_external_entities: list, new_graphics: list
+    lines: list[str],
+    ext_entity_dict: dict,
+    new_external_entities: list,
+    new_graphics: list,
 ) -> None:
     """
     Scans a list of lines for graphic tags and external entities, updating the provided lists and
@@ -197,12 +218,12 @@ def process_graphic_tags(line: str, new_graphics: list) -> None:
         boardno = re.findall(r'boardno=[",\'][a-zA-Z0-9_-]+[",\']', line)
         boardno = boardno[0][9:-1]
         if boardno:
-            graphic = f"\t<!ENTITY {boardno} SYSTEM " f'"../graphics-SVG/{boardno}.svg" NDATA SVG>'
+            graphic = f"\t<!ENTITY {boardno} SYSTEM " f'"../graphics-SVG/{boardno}.svg" NDATA svg>'
             if graphic not in new_graphics:
                 new_graphics.append(graphic)
 
         # Add SVG notation if the work package includes graphics
-        new_graphics.append('\t<!NOTATION SVG PUBLIC "-//W3C//DTD SVG 1.1//EN">')
+        new_graphics.append('\t<!NOTATION svg PUBLIC "-//W3C//DTD SVG 1.1//EN">')
 
 
 def process_external_entities(
@@ -390,7 +411,7 @@ def print_doctype_declaration(path: str) -> None:
         textbox.insert(END, f"{opening_tag}", "red")
         # Print Public ID and DTD path in aqua
         textbox.tag_configure("aqua", foreground="aqua", font="Monaco")
-        textbox.insert(END, f" {doctype_tag_end}\n", "aqua")
+        textbox.insert(END, " " + doctype_tag_end + "\n", "aqua")
 
 
 def get_opening_tag(path: str) -> Optional[str]:
@@ -420,7 +441,7 @@ def get_opening_tag(path: str) -> Optional[str]:
         return None
 
 
-def update_files(FOLDER_PATH: str, ext_entity_dict: dict) -> None:
+def update_files(folder_path: str, ext_entity_dict: dict) -> None:
     """
     Updates XML files in the specified folder by adding new graphic and external entity
     declarations.
@@ -437,10 +458,10 @@ def update_files(FOLDER_PATH: str, ext_entity_dict: dict) -> None:
     doctype_end = "]>"
     xml_tag = '<?xml version="1.0" encoding="UTF-8"?>'
 
-    for _dir, _subdir, files in os.walk(FOLDER_PATH):
+    for dir_, _, files in os.walk(folder_path):
         for file in files:
             if file.endswith(".xml") and not any(term in file.lower() for term in files_to_skip):
-                path = os.path.join(_dir, file)
+                path = os.path.join(dir_, file)
                 new_graphics = []
                 new_external_entities = []
                 doctype_start = (
@@ -470,12 +491,12 @@ def update_files(FOLDER_PATH: str, ext_entity_dict: dict) -> None:
                                 graphic = (
                                     f"\t<!ENTITY {boardno[0][1:-1]} SYSTEM "
                                     f'"../graphics-SVG/{boardno[0][1:-1]}.svg"'
-                                    f" NDATA SVG>"
+                                    f" NDATA svg>"
                                 )
                                 new_graphics.append(graphic)
                             # Add SVG notation if the work package includes graphics
                             new_graphics.append(
-                                '\t<!NOTATION SVG PUBLIC "-//W3C//DTD SVG 1.1//EN">'
+                                '\t<!NOTATION svg PUBLIC "-//W3C//DTD SVG 1.1//EN">'
                             )
 
                         # Find all the external entity references
@@ -564,7 +585,7 @@ frame_btm.pack(side=BOTTOM, fill=BOTH, expand=True, padx=10, pady=10)
 
 # "IMPORT IADS FOLDER" button with custom color
 iads_btn = ttk.Button(
-    frame_top, text="Open IADS Folder", command=open_iads_dir, style=CUSTOM_TBUTTON
+    frame_top, text="Open IADS Folder", command=scan_folder_in_background, style=CUSTOM_TBUTTON
 )
 iads_btn.grid(row=0, column=0, padx=(0, 5), pady=5, sticky=W)
 
