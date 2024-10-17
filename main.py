@@ -2,6 +2,7 @@
 
 import contextlib
 import itertools
+import logging
 import os
 import re
 import threading
@@ -22,11 +23,11 @@ ext_entity_dict: dict[str, list[str]] = {}
 files_to_skip = ("chap", "production", "catalog", "entity", "dataset", "toc")
 FOLDER_PATH = ""
 ICON_BITMAP = (
-    "C:\\Users\\nicho\\OneDrive - techresearchgroup.com\\Documents\\GitHub\\IADS-Graphics-Scanner\\"
+    "C:\\Users\\nicho\\OneDrive - techresearchgroup.com\\Documents\\GitHub\\IADS-Entity-Scanner\\"
     "logo_TRG.ico"
 )
 IMAGE_PATH = (
-    "C:\\Users\\nicho\\OneDrive - techresearchgroup.com\\Documents\\GitHub\\IADS-Graphics-Scanner\\"
+    "C:\\Users\\nicho\\OneDrive - techresearchgroup.com\\Documents\\GitHub\\IADS-Entity-Scanner\\"
     "logo_TRG_text.png"
 )
 
@@ -56,16 +57,17 @@ def open_iads_dir() -> None:
         None
     """
     textbox.delete("1.0", END)
-    global FOLDER_PATH  # pylint: disable=W0603
+    global FOLDER_PATH
     FOLDER_PATH = filedialog.askdirectory()
 
     if FOLDER_PATH:
         scan_iads_folder(FOLDER_PATH)
         # # Measure the time taken for 10 executions of scan_iads_folder
-        execution_time = timeit.timeit(
-            "scan_iads_folder(FOLDER_PATH)", globals=globals(), number=10
-        )
-        print(f"Execution time: {execution_time} seconds")
+        # execution_time: float = timeit.timeit(
+        #     "scan_iads_folder(FOLDER_PATH)", globals=globals(), number=10
+        # )
+        # logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+        # logging.info("Execution time: %s seconds", execution_time)
     update_btn.configure(state="normal")
 
 
@@ -102,10 +104,10 @@ def scan_entity_files(folder_path: str) -> dict:
     ext_entity_dict = {}
     for dir_, _, files in os.walk(folder_path):
         for file in files:
-            path = os.path.join(dir_, file).lower()
+            path: str = os.path.join(dir_, file).lower()
             if "boilerplate" in path or "entities" in path and file.endswith(".ent"):
                 with open(path, "r", encoding="utf-8") as entity_file:
-                    entity_list = entity_file.read().splitlines()
+                    entity_list: list[str] = entity_file.read().splitlines()
                     entity_list = get_external_entities_from_ent_file(entity_list)
                     entity_file.close()
                     ext_entity_dict[file.split(".")[0]] = entity_list
@@ -426,7 +428,7 @@ def get_opening_tag(path: str) -> Optional[str]:
     If no valid opening tag is found, it prints a message and returns None.
     """
     with open(path, "r", encoding="utf-8") as work_package:
-        lines = work_package.read().splitlines(True)
+        lines: list[str] = work_package.read().splitlines(True)
         opening_tag = None  # Initialize opening_tag to None
 
         for line in lines:
@@ -441,30 +443,39 @@ def get_opening_tag(path: str) -> Optional[str]:
         return None
 
 
-def update_files(folder_path: str, ext_entity_dict: dict) -> None:
+def update_files_in_background() -> None:
     """
-    Updates XML files in the specified folder by adding new graphic and external entity
-    declarations.
-    This function traverses through the given folder, processes each XML file, and updates it by:
-    - Adding new graphic-related entities based on specific tags found in the file.
-    - Adding new external entity references found in the file.
-    - Writing the updated XML declaration and DOCTYPE with the new entities.
-    Args:
-        FOLDER_PATH (str): The path to the folder containing the XML files to be updated.
-        ext_entity_dict (dict): A dictionary containing external entity declarations.
+    Starts a new thread to update files in the background.
+
+    This function creates and starts a new thread that runs the `update_files`
+    function with the specified `FOLDER_PATH` and `ext_entity_dict` arguments.
+    It allows the file update process to run asynchronously without blocking
+    the main program execution.
+
     Returns:
         None
     """
+    # # # Measure the time taken for 10 executions of scan_iads_folder
+    # execution_time: float = timeit.timeit(
+    #     "update_files(folder_path, exe_entity_dict)", globals=globals(), number=10
+    # )
+    # logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    # logging.info("Execution time: %s seconds", execution_time)
+    thread = threading.Thread(target=update_files(FOLDER_PATH, ext_entity_dict))
+    thread.start()
+
+
+def update_files(folder_path: str, ext_entity_dict: dict) -> None:
     doctype_end = "]>"
     xml_tag = '<?xml version="1.0" encoding="UTF-8"?>'
 
     for dir_, _, files in os.walk(folder_path):
         for file in files:
             if file.endswith(".xml") and not any(term in file.lower() for term in files_to_skip):
-                path = os.path.join(dir_, file)
+                path: str = os.path.join(dir_, file)
                 new_graphics = []
                 new_external_entities = []
-                doctype_start = (
+                doctype_start: str = (
                     f"<!DOCTYPE {get_opening_tag(path)} PUBLIC "
                     f'"-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" '
                     f'"../dtd/40051D_7_0.dtd" ['
@@ -473,7 +484,7 @@ def update_files(folder_path: str, ext_entity_dict: dict) -> None:
 
                 # Read the work package file
                 with open(path, "r", encoding="utf-8") as fin:
-                    work_package = fin.read().splitlines(True)
+                    work_package: list[str] = fin.read().splitlines(True)
 
                 # Create a new file or overwrite the existing one
                 with open(path, "w", encoding="utf-8") as fout:
@@ -488,7 +499,7 @@ def update_files(folder_path: str, ext_entity_dict: dict) -> None:
                         ):
                             boardno = re.findall(r'".+"', line)
                             if boardno:
-                                graphic = (
+                                graphic: str = (
                                     f"\t<!ENTITY {boardno[0][1:-1]} SYSTEM "
                                     f'"../graphics-SVG/{boardno[0][1:-1]}.svg"'
                                     f" NDATA svg>"
@@ -585,7 +596,10 @@ frame_btm.pack(side=BOTTOM, fill=BOTH, expand=True, padx=10, pady=10)
 
 # "IMPORT IADS FOLDER" button with custom color
 iads_btn = ttk.Button(
-    frame_top, text="Open IADS Folder", command=scan_folder_in_background, style=CUSTOM_TBUTTON
+    frame_top,
+    text="Open IADS Folder",
+    command=scan_folder_in_background,
+    style=CUSTOM_TBUTTON,
 )
 iads_btn.grid(row=0, column=0, padx=(0, 5), pady=5, sticky=W)
 
@@ -594,6 +608,7 @@ update_btn = ttk.Button(
     frame_top,
     text="Update WP Entities",
     command=lambda: update_files(FOLDER_PATH, ext_entity_dict),
+    # command=update_files_in_background,
     state=DISABLED,
     style=CUSTOM_TBUTTON,
 )
@@ -603,8 +618,9 @@ update_btn.grid(row=0, column=1, padx=5, pady=5, sticky=W)
 frame_top.columnconfigure(2, weight=1)
 
 # Label to display the image on the far right
-img_label = ttk.Label(frame_top, image=img)
-img_label.image = img  # Keep a reference to avoid garbage collection
+img_label = ttk.Label(frame_top, image=img)  # type: ignore
+# Keep a reference to avoid garbage collection
+img_label.image = img  # type: ignore
 img_label.grid(row=0, column=3, padx=0, pady=5, sticky=E)
 
 # ScrolledText widget for log output or entity text display

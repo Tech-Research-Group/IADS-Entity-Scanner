@@ -1,9 +1,2 @@
 [tool.black]
 line-length = 100
-
-[tool.flake8]
-max-line-length = 100
-ignore = ["E501"]
-
-[tool.pylint]
-disable = ["W0603", "W0621"]
