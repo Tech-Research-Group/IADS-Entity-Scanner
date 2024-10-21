@@ -10,7 +10,7 @@ You should receive a success alert if everything works correctly.
 sure each graphic, symbol, icon-set, back and authent tag starts at the beginning of their own line to ensure the scanner reads and updates each graphic
 properly.*
 
-![IADS Graphics Scanner](https://github.com/Tech-Research-Group/IADS-Entity-Scanner/blob/main/scanner-screenshot.png "IADS Entity Scanner")
+![IADS Entity Scanner](https://github.com/Tech-Research-Group/IADS-Entity-Scanner/blob/main/scanner-screenshot.png "IADS Entity Scanner")
 
 If you find any bugs or have some ideas to improve the program please reach out to [Nick Ricci](https://github.com/trg-nickr) so he can address each of 
 them properly. Thanks!
