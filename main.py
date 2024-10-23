@@ -746,12 +746,6 @@ IMAGE_PATH = "logo_TRG_text.png"
 image_path = resource_path(IMAGE_PATH)
 image = Image.open(IMAGE_PATH).convert("RGBA")
 
-# try:
-#     IMAGE_PATH = "logo_TRG_text.png"
-#     image = Image.open(IMAGE_PATH).convert("RGBA")
-# except FileNotFoundError as e:
-#     print(f"Warning: Failed to load image: {e}")
-
 # Resize the image
 NEW_WIDTH = 350  # Adjust this to make it longer
 original_width, original_height = image.size
