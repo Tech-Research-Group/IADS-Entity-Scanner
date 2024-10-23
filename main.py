@@ -2,14 +2,15 @@
 
 import contextlib
 import itertools
-import logging
-import os
-import re
-import threading
-import timeit
-import tkinter.font as tkfont
 
-# from pathlib import Path
+# import logging
+import re
+import sys
+import threading
+
+# import timeit
+import tkinter.font as tkfont
+from pathlib import Path
 from tkinter import TclError, filedialog, messagebox
 from tkinter import scrolledtext as st
 from typing import Optional
@@ -19,17 +20,9 @@ from PIL import Image, ImageTk
 from ttkbootstrap.constants import BOTH, BOTTOM, DISABLED, END, LEFT, TOP, WORD, E, W, X
 
 CUSTOM_TBUTTON = "Custom.TButton"
-ext_entity_dict: dict[str, list[str]] = {}
+ext_entity_dict = {}
 files_to_skip = ("chap", "production", "catalog", "entity", "dataset", "toc")
-FOLDER_PATH = ""
-ICON_BITMAP = (
-    "C:\\Users\\nicho\\OneDrive - techresearchgroup.com\\Documents\\GitHub\\IADS-Entity-Scanner\\"
-    "logo_TRG.ico"
-)
-IMAGE_PATH = (
-    "C:\\Users\\nicho\\OneDrive - techresearchgroup.com\\Documents\\GitHub\\IADS-Entity-Scanner\\"
-    "logo_TRG_text.png"
-)
+FOLDER_PATH = Path()
 
 
 def scan_folder_in_background() -> None:
@@ -58,9 +51,9 @@ def open_iads_dir() -> None:
     """
     textbox.delete("1.0", END)
     global FOLDER_PATH
-    FOLDER_PATH = filedialog.askdirectory()
+    FOLDER_PATH = Path(filedialog.askdirectory())
 
-    if FOLDER_PATH:
+    if FOLDER_PATH.exists():
         scan_iads_folder(FOLDER_PATH)
         # # Measure the time taken for 10 executions of scan_iads_folder
         # execution_time: float = timeit.timeit(
@@ -71,14 +64,14 @@ def open_iads_dir() -> None:
     update_btn.configure(state="normal")
 
 
-def scan_iads_folder(folder_path: str) -> None:
+def scan_iads_folder(folder_path: Path) -> None:
     """
     Scans the specified IADS folder for entity and work package files.
     This function updates the global `ext_entity_dict` with the results of scanning
     the entity files in the provided folder path. It then scans the work package files
     using the updated `ext_entity_dict`.
     Args:
-        FOLDER_PATH (str): The path to the folder containing the IADS files to be scanned.
+        FOLDER_PATH (Path): The path to the folder containing the IADS files to be scanned.
     Returns:
         None
     """
@@ -87,11 +80,11 @@ def scan_iads_folder(folder_path: str) -> None:
     scan_work_package_files(folder_path, ext_entity_dict)
 
 
-def scan_entity_files(folder_path: str) -> dict:
+def scan_entity_files(folder_path: Path) -> dict:
     """
     Scans a given folder for entity files and extracts external entities from them.
     Args:
-        FOLDER_PATH (str): The path to the folder containing entity files.
+        FOLDER_PATH (Path): The path to the folder containing entity files.
     Returns:
         dict: A dictionary where the keys are the base names of the entity files (without
               extensions) and the values are lists of external entities extracted from those files.
@@ -102,79 +95,119 @@ def scan_entity_files(folder_path: str) -> dict:
           and stores the results in a dictionary.
     """
     ext_entity_dict = {}
-    for dir_, _, files in os.walk(folder_path):
-        for file in files:
-            path: str = os.path.join(dir_, file).lower()
-            if "boilerplate" in path or "entities" in path and file.endswith(".ent"):
-                with open(path, "r", encoding="utf-8") as entity_file:
-                    entity_list: list[str] = entity_file.read().splitlines()
-                    entity_list = get_external_entities_from_ent_file(entity_list)
-                    entity_file.close()
-                    ext_entity_dict[file.split(".")[0]] = entity_list
+    folder_path = Path(folder_path)
+
+    # Iterate over all .ent files in the directory and subdirectories
+    for path in folder_path.rglob("*.ent"):
+        path_str = str(path).lower()
+        # Check if the path contains "boilerplate" or "entities"
+        if "boilerplate" in path_str or "entities" in path_str:
+            # Open and read the entity file
+            with path.open("r", encoding="utf-8") as entity_file:
+                entity_list = entity_file.read().splitlines()
+                entity_list = get_external_entities_from_ent_file(entity_list)
+                ext_entity_dict[path.stem] = entity_list
+
     return ext_entity_dict
 
 
-def scan_work_package_files(folder_path: str, ext_entity_dict: dict) -> None:
+def scan_work_package_files(folder_path: Path, ext_entity_dict: dict) -> None:
     """
     Scans work package files in the specified folder path for XML files, extracts external entities
     and graphics, and displays them in a textbox widget.
     Args:
-        FOLDER_PATH (str): The path to the folder containing work package files.
+        FOLDER_PATH (Path): The path to the folder containing work package files.
         ext_entity_dict (dict): A dictionary to store the extracted external entities.
     Returns:
         None
     """
-    for dir_, _, files in os.walk(folder_path):
-        for file in files:
-            if file.endswith(".xml") and not any(term in file.lower() for term in files_to_skip):
-                path = os.path.join(dir_, file)
-                with open(path, "r", encoding="utf-8") as work_package:
-                    new_external_entities: list[str] = []
-                    new_graphics: list[str] = []
+    # Create a progress bar widget
+    progress_bar = ttk.Progressbar(root, orient="horizontal", length=300, mode="determinate")
+    progress_bar.pack(pady=10)
 
-                    # Print path of the work package file
-                    textbox.tag_configure("path", font=("Arial", 12, "bold"))
-                    textbox.insert(END, f"{os.path.basename(path)}\n", "path")
-                    print_doctype_declaration(path)
+    # Get a list of all XML files that need to be processed
+    xml_files = [
+        path
+        for path in folder_path.rglob("files/*.xml")
+        if not any(term in path.name.lower() for term in files_to_skip)
+        and "!submission" not in str(path).lower()
+    ]
+    max_value = len(xml_files)
 
-                    # Break the file into lines and scan for entities
-                    lines = work_package.read().splitlines()
-                    scan_lines_for_entities(
-                        lines, ext_entity_dict, new_external_entities, new_graphics
-                    )
+    if max_value == 0:
+        # If no files are found, display an informational message and remove the progress bar
+        messagebox.showinfo("Info", "No XML files found to scan.")
+        progress_bar.destroy()
+        return
 
-                    total_entities = list(itertools.chain(new_graphics, new_external_entities))
-                    sorted_entities: list[str] = sorted(set(total_entities))
+    # Set the maximum value for the progress bar
+    progress_bar["maximum"] = max_value
+    progress_bar["value"] = 0  # Reset the progress bar value
 
-                    for entity in sorted_entities:
-                        textbox.insert(END, f"{entity}\n")
-                        # Color-code the entity declarations
-                        # if "<!ENTITY %" in entity:
-                        #     open_tag = entity.split("ENTITY")[0]
-                        #     entity_name = entity.split(
-                        #         "ENTITY % ")[1].strip(" ")
-                        #     textbox.tag_configure(
-                        #         "aqua", foreground="aqua", font="Monaco")
-                        #     textbox.insert(END, f"{open_tag}", "aqua")
-                        #     textbox.tag_configure(
-                        #         "lavender", foreground="lavender", font="Monaco")
-                        #     textbox.insert(END, "ENTITY", "lavender")
-                        #     textbox.tag_configure(
-                        #         "aqua", foreground="aqua", font="Monaco")
-                        #     textbox.insert(END, " % ", "aqua")
-                        #     textbox.tag_configure(
-                        #         "red", foreground="red", font="Monaco")
-                        #     textbox.insert(END, f"{entity_name}", "red")
-                        # elif "NOTATION" in entity:
-                        #     textbox.tag_configure(
-                        #         "aqua", foreground="aqua", font="Monaco")
-                        #     textbox.insert(END, f"{entity}\n", "aqua")
-                        # elif "%" not in entity and "NOTATION" not in entity:
-                        #     textbox.insert(END, f"{entity}\n")
+    # Iterate through all XML files and process them
+    for i, path in enumerate(xml_files, start=1):
+        # Open and read the work package file using a context manager
+        path_str = str(path).lower()
+        if (
+            not any(term in path.name.lower() for term in files_to_skip)
+            and "!submission" not in path_str
+        ):
+            with path.open("r", encoding="utf-8") as work_package:
+                new_external_entities = []
+                new_graphics = []
 
-                    textbox.tag_configure("aqua", foreground="aqua", font="Monaco")
-                    textbox.insert(END, "]>\n\n", "aqua")
-                work_package.close()
+                # Print path of the work package file in the textbox
+                textbox.tag_configure("path", font=("Arial", 12, "bold"))
+                textbox.insert(END, f"{path.name}\n", "path")
+                print_doctype_declaration(path)
+
+                # Break the file into lines and scan for entities
+                lines = work_package.read().splitlines()
+                scan_lines_for_entities(lines, ext_entity_dict, new_external_entities, new_graphics)
+
+                # Combine and sort all unique entities (graphics and external entities)
+                total_entities = list(itertools.chain(new_graphics, new_external_entities))
+                sorted_entities = sorted(set(total_entities))
+
+                # Insert each entity into the textbox
+                for entity in sorted_entities:
+                    textbox.insert(END, f"{entity}\n")
+                    # Color-code the entity declarations
+                    # if "<!ENTITY %" in entity:
+                    #     open_tag = entity.split("ENTITY")[0]
+                    #     entity_name = entity.split(
+                    #         "ENTITY % ")[1].strip(" ")
+                    #     textbox.tag_configure(
+                    #         "aqua", foreground="aqua", font="Monaco")
+                    #     textbox.insert(END, f"{open_tag}", "aqua")
+                    #     textbox.tag_configure(
+                    #         "lavender", foreground="lavender", font="Monaco")
+                    #     textbox.insert(END, "ENTITY", "lavender")
+                    #     textbox.tag_configure(
+                    #         "aqua", foreground="aqua", font="Monaco")
+                    #     textbox.insert(END, " % ", "aqua")
+                    #     textbox.tag_configure(
+                    #         "red", foreground="red", font="Monaco")
+                    #     textbox.insert(END, f"{entity_name}", "red")
+                    # elif "NOTATION" in entity:
+                    #     textbox.tag_configure(
+                    #         "aqua", foreground="aqua", font="Monaco")
+                    #     textbox.insert(END, f"{entity}\n", "aqua")
+                    # elif "%" not in entity and "NOTATION" not in entity:
+                    #     textbox.insert(END, f"{entity}\n")
+
+                textbox.tag_configure("aqua", foreground="aqua", font="Monaco")
+                textbox.insert(END, "]>\n\n", "aqua")
+
+        # Update the progress bar
+        progress_bar["value"] = i
+        root.update_idletasks()  # Ensure the GUI is updated during the loop
+
+    # Once processing is complete, destroy the progress bar
+    progress_bar.destroy()
+
+    # Show a success message
+    messagebox.showinfo("SUCCESS", "Files scanned successfully")
 
 
 def scan_lines_for_entities(
@@ -258,13 +291,12 @@ def process_external_entities(
 
 def get_entity_declaration(new_external_entity: str, ext_entity_dict: dict) -> Optional[str]:
     """
-    Generates an entity declaration string for a given external entity.
+    Generates an entity declaration string based on the provided external entity name and dictionary.
     Args:
         new_external_entity (str): The name of the new external entity to be declared.
         ext_entity_dict (dict): A dictionary containing existing external entities.
     Returns:
-        Optional[str]: The entity declaration string if the entity is found in the mapping,
-                       otherwise None.
+        Optional[str]: The entity declaration string if the entity is found in the dictionary, otherwise None.
     """
     entity_mapping = {
         "dimboil": (
@@ -305,62 +337,87 @@ def get_entity_declaration(new_external_entity: str, ext_entity_dict: dict) -> O
         "cautions": (
             "cautions",
             "../entities/cautions",
-            "-//USA-DOD//ENTITIES MIL-STD-40051 Cautions REV D 7.0 20220130//EN",
+            "-//TRG//ENTITIES MIL-STD-40051 Cautions REV A 1.0 20241018//EN",
         ),
-        "ec": (
-            "ec",
-            "../entities/ec",
-            "-//USA-DOD//ENTITIES MIL-STD-40051 EC REV D 7.0 20220130//EN",
+        "equipment_conditions": (
+            "equipment_conditions",
+            "../entities/equipment_conditions",
+            "-//TRG//ENTITIES MIL-STD-40051 Equipment Conditions REV A 1.0 20241018//EN",
         ),
-        "fom": (
-            "fom",
-            "../entities/fom",
-            "-//USA-DOD//ENTITIES MIL-STD-40051 FOM REV D 7.0 20220130//EN",
+        "followon_maintenance": (
+            "followon_maintenance",
+            "../entities/followon_maintenance",
+            "-//TRG//ENTITIES MIL-STD-40051 Follow-on Maintenance REV A 1.0 20241018//EN",
+        ),
+        "isb": (
+            "isb",
+            "../entities/isb",
+            "-//TRG//ENTITIES MIL-STD-40051 Initial Setup Box REV A 1.0 20241018//EN",
         ),
         "materials": (
             "materials",
             "../entities/materials",
-            "-//USA-DOD//ENTITIES MIL-STD-40051 Materials REV D 7.0 20220130//EN",
+            "-//TRG//ENTITIES MIL-STD-40051 Material Parts REV A 1.0 20241018//EN",
         ),
-        "mrp": (
-            "mrp",
-            "../entities/mrp",
-            "-//USA-DOD//ENTITIES MIL-STD-40051 MRP REV D 7.0 20220130//EN",
+        "material_replacement_parts": (
+            "material_replacement_parts",
+            "../entities/material_replacement_parts",
+            "-//TRG//ENTITIES MIL-STD-40051 Material Replacement Parts REV A 1.0 20241018//EN",
         ),
         "notes": (
             "notes",
             "../entities/notes",
-            "-//USA-DOD//ENTITIES MIL-STD-40051 Notes REV D 7.0 20220130//EN",
+            "-//TRG//ENTITIES MIL-STD-40051 Notes REV A 1.0 20241018//EN",
         ),
         "personnel": (
             "personnel",
             "../entities/personnel",
-            "-//USA-DOD//ENTITIES MIL-STD-40051 Personnel REV D 7.0 20220130//EN",
+            "-//TRG//ENTITIES MIL-STD-40051 Personnel REV A 1.0 20241018//EN",
         ),
         "procedural_steps": (
             "procedural_steps",
             "../entities/procedural_steps",
-            "-//USA-DOD//ENTITIES MIL-STD-40051 Procedural Steps REV D 7.0 20220130//EN",
+            "-//TRG//ENTITIES MIL-STD-40051 Procedural Steps REV A 1.0 20241018//EN",
+        ),
+        "references": (
+            "references",
+            "../entities/references",
+            "-//TRG//ENTITIES MIL-STD-40051 References REV A 1.0 20241018//EN",
+        ),
+        "special_tools": (
+            "special_tools",
+            "../entities/special_tools",
+            "-//TRG//ENTITIES MIL-STD-40051 Special Tools REV A 1.0 20241018//EN",
+        ),
+        "test_equipment": (
+            "test_equipment",
+            "../entities/test_equipment",
+            "-//TRG//ENTITIES MIL-STD-40051 Test Equipment REV A 1.0 20241018//EN",
         ),
         "tools": (
             "tools",
             "../entities/tools",
-            "-//USA-DOD//ENTITIES MIL-STD-40051 Tools REV D 7.0 20220130//EN",
+            "-//TRG//ENTITIES MIL-STD-40051 Tools REV A 1.0 20241018//EN",
         ),
         "warnings": (
             "warnings",
             "../entities/warnings",
-            "-//USA-DOD//ENTITIES MIL-STD-40051 Warnings REV D 7.0 20220130//EN",
+            "-//TRG//ENTITIES MIL-STD-40051 Warnings REV A 1.0 20241018//EN",
         ),
     }
 
     for key, value in entity_mapping.items():
-        if new_external_entity in ext_entity_dict[key]:
-            entity_name, filename, public_id = value
-            return (
-                f'\t<!ENTITY % {entity_name} PUBLIC "{public_id}" '
-                f'"{filename}.ent"> %{entity_name};'
-            )
+        try:
+            if new_external_entity in ext_entity_dict[key]:
+                entity_name, filename, public_id = value
+                return (
+                    f'\t<!ENTITY % {entity_name} PUBLIC "{public_id}" '
+                    f'"{filename}.ent"> %{entity_name};'
+                )
+        except KeyError:
+            # If the entity file is not found in the dictionary, skip to the next entity file
+            continue
+
     return None
 
 
@@ -372,7 +429,6 @@ def get_external_entities_from_ent_file(entity_file: list[str]) -> list:
     Returns:
         list: A list of unique external entity names found in the entity file.
     """
-
     external_entities = []
     for line in entity_file:
         if "<!ENTITY" in line:
@@ -384,7 +440,7 @@ def get_external_entities_from_ent_file(entity_file: list[str]) -> list:
     return external_entities
 
 
-def print_doctype_declaration(path: str) -> None:
+def print_doctype_declaration(path: Path) -> None:
     """
     Prints the DOCTYPE declaration for a given file path in a formatted manner.
     This function retrieves the opening tag from the specified file path and prints
@@ -416,11 +472,11 @@ def print_doctype_declaration(path: str) -> None:
         textbox.insert(END, " " + doctype_tag_end + "\n", "aqua")
 
 
-def get_opening_tag(path: str) -> Optional[str]:
+def get_opening_tag(path: Path) -> Optional[str]:
     """
     Extracts the opening tag from an HTML or XML file.
     Args:
-        path (str): The file path to the HTML or XML file.
+        path (Path): The file path to the HTML or XML file.
     Returns:
         Optional[str]: The opening tag if found, otherwise None.
     This function reads the content of the specified file and searches for the
@@ -428,7 +484,7 @@ def get_opening_tag(path: str) -> Optional[str]:
     If no valid opening tag is found, it prints a message and returns None.
     """
     with open(path, "r", encoding="utf-8") as work_package:
-        lines: list[str] = work_package.read().splitlines(True)
+        lines = work_package.read().splitlines(True)
         opening_tag = None  # Initialize opening_tag to None
 
         for line in lines:
@@ -436,10 +492,11 @@ def get_opening_tag(path: str) -> Optional[str]:
                 opening_tag = re.findall(r"([a-zA-Z.]+)", line)
                 break
 
-    if opening_tag and len(opening_tag) > 1:
+    if opening_tag and len(opening_tag) >= 2:
         return opening_tag[1]
     else:
-        print(f"No valid opening tag found in {path}.")
+        # logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+        # logging.info("No valid opening tag found in %s.", path)
         return None
 
 
@@ -455,95 +512,224 @@ def update_files_in_background() -> None:
     Returns:
         None
     """
-    # # # Measure the time taken for 10 executions of scan_iads_folder
-    # execution_time: float = timeit.timeit(
-    #     "update_files(folder_path, exe_entity_dict)", globals=globals(), number=10
-    # )
-    # logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-    # logging.info("Execution time: %s seconds", execution_time)
     thread = threading.Thread(target=update_files(FOLDER_PATH, ext_entity_dict))
     thread.start()
 
 
-def update_files(folder_path: str, ext_entity_dict: dict) -> None:
+def update_files(folder_path: Path, ext_entity_dict: dict) -> None:
+    """
+    Updates XML files in the specified folder and its subdirectories.
+    This function iterates through all XML files in the given folder path and its subdirectories.
+    For each XML file, it processes the file unless it matches any term in the files_to_skip list.
+    After processing all files, it displays a success message.
+    Args:
+        folder_path (Path): The path to the folder containing XML files to be updated.
+        ext_entity_dict (dict): A dictionary containing external entity definitions to be used in the update process.
+    Returns:
+        None
+    """
     doctype_end = "]>"
     xml_tag = '<?xml version="1.0" encoding="UTF-8"?>'
 
-    for dir_, _, files in os.walk(folder_path):
-        for file in files:
-            if file.endswith(".xml") and not any(term in file.lower() for term in files_to_skip):
-                path: str = os.path.join(dir_, file)
-                new_graphics = []
-                new_external_entities = []
-                doctype_start: str = (
-                    f"<!DOCTYPE {get_opening_tag(path)} PUBLIC "
-                    f'"-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" '
-                    f'"../dtd/40051D_7_0.dtd" ['
-                )
-                print(f"Opening {path}")
+    # Create a progress bar
+    progress_bar = ttk.Progressbar(root, orient="horizontal", length=300, mode="determinate")
+    progress_bar.pack(pady=20)
 
-                # Read the work package file
-                with open(path, "r", encoding="utf-8") as fin:
-                    work_package: list[str] = fin.read().splitlines(True)
+    # Get a list of all XML files to be processed
+    xml_files = [
+        path
+        for path in folder_path.rglob("files/*.xml")
+        if not any(term in path.name.lower() for term in files_to_skip)
+        and "!submission" not in str(path).lower()
+    ]
+    max_value = len(xml_files)
 
-                # Create a new file or overwrite the existing one
-                with open(path, "w", encoding="utf-8") as fout:
-                    for line in work_package:
-                        # Find all the graphic-related lines
-                        if (
-                            "<graphic " in line
-                            or "<icon-set " in line
-                            or "<symbol " in line
-                            or "<authent " in line
-                            or "<back " in line
-                        ):
-                            boardno = re.findall(r'".+"', line)
-                            if boardno:
-                                graphic: str = (
-                                    f"\t<!ENTITY {boardno[0][1:-1]} SYSTEM "
-                                    f'"../graphics-SVG/{boardno[0][1:-1]}.svg"'
-                                    f" NDATA svg>"
-                                )
-                                new_graphics.append(graphic)
-                            # Add SVG notation if the work package includes graphics
-                            new_graphics.append(
-                                '\t<!NOTATION svg PUBLIC "-//W3C//DTD SVG 1.1//EN">'
-                            )
+    # Set the maximum value for the progress bar
+    progress_bar["maximum"] = max_value
+    progress_bar["value"] = 0  # Reset the progress bar value
 
-                        # Find all the external entity references
-                        if "&" in line:
-                            matches = re.findall(r"&([a-zA-Z0-9._-]+);", line)
-                            if matches:
-                                for new_external_entity in matches:
-                                    entity_declaration = get_entity_declaration(
-                                        new_external_entity, ext_entity_dict
-                                    )
-                                    if entity_declaration:
-                                        new_external_entities.append(entity_declaration)
+    # Iterate through all XML files and process them
+    for i, path in enumerate(xml_files, start=1):
+        process_file(path, xml_tag, doctype_end, ext_entity_dict)
+        # # Measure the time taken for 10 executions of scan_iads_folder
+        # execution_time: float = timeit.timeit(
+        #     "process_file(path, xml_tag, doctype_end, ext_entity_dict)",
+        #     globals=globals(),
+        #     number=10,
+        # )
+        # logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+        # logging.info("Execution time: %s seconds", execution_time)
+        progress_bar["value"] = i  # Update progress bar value
+        root.update_idletasks()  # Update the GUI
 
-                    # Write XML declaration and DOCTYPE with new entities
-                    fout.write(f"{xml_tag}\n{doctype_start}\n")
-                    total_entities = list(itertools.chain(new_graphics, new_external_entities))
-                    sorted_entities = sorted(set(total_entities))
+    # Job is done; now hide the progress bar
+    progress_bar.pack_forget()
 
-                    for entity in sorted_entities:
-                        fout.write(f"{entity}\n")
-
-                    fout.write(f"{str(doctype_end)}\n")
-
-                    # Find where the DOCTYPE ends (i.e., ]>) and start writing the rest of the file
-                    # from there
-                    found_doctype_end = False
-                    for line in work_package:
-                        if not found_doctype_end:
-                            if doctype_end in line:
-                                found_doctype_end = True
-                            continue  # Skip lines until DOCTYPE end is found
-
-                        # Write the remaining part of the file (excluding the old DOCTYPE)
-                        fout.write(line)
-
+    # Display a success message
     messagebox.showinfo("SUCCESS", "Files converted successfully")
+
+
+def should_skip_file(path: Path) -> bool:
+    """
+    Determines if a file should be skipped based on its name.
+    Args:
+        path (Path): The path of the file to check.
+
+    Returns:
+        bool: True if the file should be skipped, False otherwise.
+    """
+    return any(term in path.name.lower() for term in files_to_skip)
+
+
+def process_file(path: Path, xml_tag: str, doctype_end: str, ext_entity_dict: dict) -> None:
+    """
+    Processes an XML file by extracting entities and updating its content.
+    Args:
+        path (Path): The path to the XML file to be processed.
+        xml_tag (str): The XML tag to be used in the updated content.
+        doctype_end (str): The ending part of the DOCTYPE declaration.
+        ext_entity_dict (dict): A dictionary containing external entities to be extracted.
+    Returns:
+        None
+    """
+    new_graphics, new_external_entities = extract_entities(path, ext_entity_dict)
+    doctype_start = (
+        f"<!DOCTYPE {get_opening_tag(path)} PUBLIC "
+        f'"-//USA-DOD//DTD -1/2D TM Assembly REV D 7.0 20220130//EN" '
+        f'"../dtd/40051D_7_0.dtd" ['
+    )
+
+    # logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    # logging.info("Opening %s.", path)
+
+    # Read the work package file
+    with path.open("r", encoding="utf-8") as fin:
+        work_package = fin.read().splitlines(True)
+
+    # Write the updated content to the file
+    write_updated_file(
+        path, work_package, xml_tag, doctype_start, doctype_end, new_graphics, new_external_entities
+    )
+
+
+def extract_entities(path: Path, ext_entity_dict: dict) -> tuple[list[str], list[str]]:
+    """
+    Extracts graphic-related entities and external entity references from a file.
+    Args:
+        path (Path): The path to the file to be processed.
+        ext_entity_dict (dict): A dictionary containing external entity definitions.
+    Returns:
+        tuple[list[str], list[str]]: A tuple containing two lists:
+            - new_graphics: A list of strings representing new graphic-related entities.
+            - new_external_entities: A list of strings representing new external entity references.
+    """
+    new_graphics = []
+    new_external_entities = []
+
+    with path.open("r", encoding="utf-8") as fin:
+        work_package = fin.read().splitlines(True)
+
+    for line in work_package:
+        # Extract graphics-related entities
+        if is_graphic_line(line):
+            boardno = re.findall(r'boardno=[",\'][a-zA-Z0-9_-]+[",\']', line)
+            boardno = boardno[0][9:-1]
+            if boardno:
+                graphic = (
+                    f"\t<!ENTITY {boardno} SYSTEM "
+                    f'"../graphics-SVG/{boardno}.svg"'
+                    f" NDATA svg>"
+                )
+                new_graphics.append(graphic)
+            new_graphics.append('\t<!NOTATION svg PUBLIC "-//W3C//DTD SVG 1.1//EN">')
+
+        # Extract external entity references
+        if "&" in line:
+            matches = re.findall(r"&([a-zA-Z0-9._-]+);", line)
+
+            for new_external_entity in matches:
+                entity_declaration = get_entity_declaration(new_external_entity, ext_entity_dict)
+                if entity_declaration:
+                    new_external_entities.append(entity_declaration)
+
+    return new_graphics, new_external_entities
+
+
+def is_graphic_line(line: str) -> bool:
+    """
+    Determines if a given line contains any graphic-related tags.
+    Args:
+        line (str): The line of text to be checked.
+    Returns:
+        bool: True if the line contains any graphic-related tags, False otherwise.
+    Graphic-related tags include:
+        - <graphic
+        - <icon-set
+        - <symbol
+        - <authent
+        - <back
+    """
+    graphic_tags = ["<graphic ", "<icon-set ", "<symbol ", "<authent ", "<back "]
+    return any(tag in line for tag in graphic_tags)
+
+
+def write_updated_file(
+    path: Path,
+    work_package: list[str],
+    xml_tag: str,
+    doctype_start: str,
+    doctype_end: str,
+    new_graphics: list[str],
+    new_external_entities: list[str],
+) -> None:
+    """
+    Writes an updated XML file with new graphics and external entities.
+    This function writes a new XML file at the specified path, including the provided XML tag,
+    DOCTYPE start, and DOCTYPE end. It inserts new graphics and external entities in sorted order
+    and appends the remaining part of the original file, excluding the old DOCTYPE section.
+    Args:
+        path (Path): The path to the file to be written.
+        work_package (list[str]): The original content of the file as a list of strings.
+        xml_tag (str): The XML tag to be written at the beginning of the file.
+        doctype_start (str): The starting tag of the DOCTYPE section.
+        doctype_end (str): The ending tag of the DOCTYPE section.
+        new_graphics (list[str]): A list of new graphics entities to be included.
+        new_external_entities (list[str]): A list of new external entities to be included.
+    Returns:
+        None
+    """
+    with path.open("w", encoding="utf-8") as fout:
+        fout.write(f"{xml_tag}\n{doctype_start}\n")
+        total_entities = list(itertools.chain(new_graphics, new_external_entities))
+        sorted_entities = sorted(set(total_entities))
+
+        for entity in sorted_entities:
+            fout.write(f"{entity}\n")
+
+        fout.write(f"{doctype_end}\n")
+
+        # Write the remaining part of the file (excluding the old DOCTYPE)
+        found_doctype_end = False
+        for line in work_package:
+            if not found_doctype_end:
+                if doctype_end in line:
+                    found_doctype_end = True
+                continue  # Skip lines until DOCTYPE end is found
+
+            fout.write(line)
+
+
+def resource_path(relative_path):
+    """Get the absolute path to the resource, works for dev and for PyInstaller"""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = Path(getattr(sys, "_MEIPASS", Path.cwd()))
+    except AttributeError:
+        base_path = (
+            Path.cwd()
+        )  # Path to the current working directory, equivalent to os.path.abspath(".")
+
+    return base_path / relative_path  # Use the '/' operator to join paths in pathlib
 
 
 # Initialize main window with ttkbootstrap style
@@ -551,13 +737,14 @@ root = ttk.Window("IADS ENTITY SCANNER", "darkly")
 root.resizable(True, True)
 root.geometry("1400x800")
 
+ICON_BITMAP = "logo_TRG.ico"
 # Set the window icon
 with contextlib.suppress(TclError):
     root.iconbitmap(ICON_BITMAP)
 
-# Load the PNG image and extract a dominant color (or manually specify)
-with contextlib.suppress(TclError):
-    image = Image.open(IMAGE_PATH).convert("RGBA")
+IMAGE_PATH = "logo_TRG_text.png"
+image_path = resource_path(IMAGE_PATH)
+image = Image.open(IMAGE_PATH).convert("RGBA")
 
 # try:
 #     IMAGE_PATH = "logo_TRG_text.png"
@@ -607,8 +794,7 @@ iads_btn.grid(row=0, column=0, padx=(0, 5), pady=5, sticky=W)
 update_btn = ttk.Button(
     frame_top,
     text="Update WP Entities",
-    command=lambda: update_files(FOLDER_PATH, ext_entity_dict),
-    # command=update_files_in_background,
+    command=update_files_in_background,
     state=DISABLED,
     style=CUSTOM_TBUTTON,
 )
@@ -628,8 +814,6 @@ textbox = st.ScrolledText(
     master=frame_btm,
     font=("Monaco", 12),
     wrap=WORD,
-    highlightcolor=ttk.Style().lookup("TButton", "foreground", default="green"),
-    highlightbackground=ttk.Style().lookup("TButton", "bordercolor", default="black"),
     highlightthickness=1,
 )
 textbox.pack(side=LEFT, fill=BOTH, expand=True)
