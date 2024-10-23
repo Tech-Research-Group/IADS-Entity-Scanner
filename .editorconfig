@@ -1,0 +1,40 @@
+# Top-most EditorConfig file
+root = true
+
+# Default settings for all files
+[*]
+# Set default indent style to tabs
+indent_style = tab
+# Set default indent size to 4 spaces
+indent_size = 4
+# Set the character set to UTF-8
+charset = utf-8
+# Trim trailing whitespace on save
+trim_trailing_whitespace = true
+# Insert a newline at the end of files
+insert_final_newline = true
+# Set max line length to 100 characters
+max_line_length = 100
+
+# Override for markdown files
+[*.md]
+# Set indent style to tabs for markdown
+indent_style = tab
+# Do not trim trailing whitespace in markdown
+trim_trailing_whitespace = false
+# Set max line length to 120 characters
+max_line_length = 120
+
+# Override for Python files
+[*.py]
+# Set indent size to 4 spaces for Python (default)
+indent_size = 4
+
+# Override for XML files
+[*.xml]
+# Set indent style to tabs for markdown
+indent_style = tab
+# Set indent size to 4 spaces for XML (default)
+indent_size = 4
+# Set max line length to 120 characters
+max_line_length = 120

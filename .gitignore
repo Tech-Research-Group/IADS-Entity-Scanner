@@ -128,5 +128,12 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-.vscode/
+# Ignore the entire .vscode folder
 .idea/
+.vscode/
+
+# But keep these specific project-related config files
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
