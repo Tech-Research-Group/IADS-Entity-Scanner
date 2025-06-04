@@ -21,7 +21,17 @@ from ttkbootstrap.constants import BOTH, BOTTOM, DISABLED, END, LEFT, TOP, WORD,
 
 CUSTOM_TBUTTON = "Custom.TButton"
 ext_entity_dict = {}
-files_to_skip = ("chap", "production", "catalog", "entity", "dataset", "toc")
+files_to_skip = (
+    "chap",
+    "start",
+    "end",
+    "submission",
+    "production",
+    "catalog",
+    "entity",
+    "dataset",
+    "toc",
+)
 FOLDER_PATH = Path()
 
 
@@ -130,7 +140,6 @@ def scan_work_package_files(folder_path: Path, ext_entity_dict: dict) -> None:
         path
         for path in folder_path.rglob("files/*.xml")
         if not any(term in path.name.lower() for term in files_to_skip)
-        and "!submission" not in str(path).lower()
     ]
     max_value = len(xml_files)
 
@@ -171,7 +180,17 @@ def scan_work_package_files(folder_path: Path, ext_entity_dict: dict) -> None:
 
                 # Insert each entity into the textbox
                 for entity in sorted_entities:
-                    textbox.insert(END, f"{entity}\n")
+
+                    # Add the selectboil entity declaration if editboil entity is found
+                    if "edit" in entity:
+                        selectboil: str = (
+                            '\t<!ENTITY % select_boilerplate PUBLIC "-//USA-DOD//ENTITIES MIL-STD-40051 Selection Boilerplate REV D 7.0 20220130//EN" '
+                            '"../dtd/boilerplate/selectboil.ent"> %select_boilerplate;'
+                        )
+                        textbox.insert(END, f"{selectboil}\n")
+                        textbox.insert(END, f"{entity}\n")
+                    else:
+                        textbox.insert(END, f"{entity}\n")
                     # Color-code the entity declarations
                     # if "<!ENTITY %" in entity:
                     #     open_tag = entity.split("ENTITY")[0]
@@ -189,13 +208,9 @@ def scan_work_package_files(folder_path: Path, ext_entity_dict: dict) -> None:
                     #     textbox.tag_configure(
                     #         "red", foreground="red", font="Monaco")
                     #     textbox.insert(END, f"{entity_name}", "red")
-                    # elif "NOTATION" in entity:
-                    #     textbox.tag_configure(
-                    #         "aqua", foreground="aqua", font="Monaco")
                     #     textbox.insert(END, f"{entity}\n", "aqua")
-                    # elif "%" not in entity and "NOTATION" not in entity:
+                    # elif "%" not in entity:
                     #     textbox.insert(END, f"{entity}\n")
-
                 textbox.tag_configure("aqua", foreground="aqua", font="Monaco")
                 textbox.insert(END, "]>\n\n", "aqua")
 
@@ -235,11 +250,11 @@ def scan_lines_for_entities(
 def process_graphic_tags(line: str, new_graphics: list) -> None:
     """
     Processes a line of text to identify and extract graphic tags, then appends
-    corresponding ENTITY and NOTATION declarations to the new_graphics list.
+    corresponding ENTITY declarations to the new_graphics list.
     Args:
         line (str): A line of text potentially containing graphic tags.
-        new_graphics (list): A list to which ENTITY and NOTATION declarations
-                             will be appended if graphic tags are found.
+        new_graphics (list): A list to which ENTITY declarations will be
+                                                 appended if graphic tags are found.
     Returns:
         None
     """
@@ -256,9 +271,6 @@ def process_graphic_tags(line: str, new_graphics: list) -> None:
             graphic = f"\t<!ENTITY {boardno} SYSTEM " f'"../graphics-SVG/{boardno}.svg" NDATA svg>'
             if graphic not in new_graphics:
                 new_graphics.append(graphic)
-
-        # Add SVG notation if the work package includes graphics
-        new_graphics.append('\t<!NOTATION svg PUBLIC "-//W3C//DTD SVG 1.1//EN">')
 
 
 def process_external_entities(
@@ -307,7 +319,7 @@ def get_entity_declaration(new_external_entity: str, ext_entity_dict: dict) -> O
         "editboil": (
             "editable_boilerplate",
             "../dtd/boilerplate/editboil",
-            "-//USA-DOD//ENTITIES MIL-STD-40051 EDIT Boilerplate REV D 7.0 20220130//EN",
+            "-//USA-DOD//ENTITIES MIL-STD-40051 Editable Boilerplate REV D 7.0 20220130//EN",
         ),
         "gimboil": (
             "gim_boilerplate",
@@ -404,12 +416,18 @@ def get_entity_declaration(new_external_entity: str, ext_entity_dict: dict) -> O
             "../entities/warnings",
             "-//TRG//ENTITIES MIL-STD-40051 Warnings REV A 1.0 20241018//EN",
         ),
+        "warning_summary": (
+            "warning_summary",
+            "../entities/warning_summary",
+            "-//TRG//ENTITIES MIL-STD-40051 Warning Summary REV A 1.0 20241018//EN",
+        ),
     }
 
     for key, value in entity_mapping.items():
         try:
             if new_external_entity in ext_entity_dict[key]:
                 entity_name, filename, public_id = value
+
                 return (
                     f'\t<!ENTITY % {entity_name} PUBLIC "{public_id}" '
                     f'"{filename}.ent"> %{entity_name};'
@@ -423,7 +441,7 @@ def get_entity_declaration(new_external_entity: str, ext_entity_dict: dict) -> O
 
 def get_external_entities_from_ent_file(entity_file: list[str]) -> list:
     """
-    Extracts external entity names from a list of strings representing lines in an entity file.
+    Extracts external entity names from a list of strings representing an entity file.
     Args:
         entity_file (list[str]): A list of strings where each string is a line from an entity file.
     Returns:
@@ -540,7 +558,7 @@ def update_files(folder_path: Path, ext_entity_dict: dict) -> None:
         path
         for path in folder_path.rglob("files/*.xml")
         if not any(term in path.name.lower() for term in files_to_skip)
-        and "!submission" not in str(path).lower()
+        # and "!submission" not in str(path).lower()
     ]
     max_value = len(xml_files)
 
@@ -641,7 +659,6 @@ def extract_entities(path: Path, ext_entity_dict: dict) -> tuple[list[str], list
                     f" NDATA svg>"
                 )
                 new_graphics.append(graphic)
-            new_graphics.append('\t<!NOTATION svg PUBLIC "-//W3C//DTD SVG 1.1//EN">')
 
         # Extract external entity references
         if "&" in line:
@@ -704,7 +721,17 @@ def write_updated_file(
         sorted_entities = sorted(set(total_entities))
 
         for entity in sorted_entities:
-            fout.write(f"{entity}\n")
+
+            # Add the selectboil entity declaration if editboil entity is found
+            if "edit" in entity:
+                selectboil: str = (
+                    '\t<!ENTITY % select_boilerplate PUBLIC "-//USA-DOD//ENTITIES MIL-STD-40051 Selection Boilerplate REV D 7.0 20220130//EN" '
+                    '"../dtd/boilerplate/selectboil.ent"> %select_boilerplate;'
+                )
+                fout.write(f"{selectboil}\n")
+                fout.write(f"{entity}\n")
+            else:
+                fout.write(f"{entity}\n")
 
         fout.write(f"{doctype_end}\n")
 
@@ -719,17 +746,11 @@ def write_updated_file(
             fout.write(line)
 
 
-def resource_path(relative_path):
-    """Get the absolute path to the resource, works for dev and for PyInstaller"""
-    try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
-        base_path = Path(getattr(sys, "_MEIPASS", Path.cwd()))
-    except AttributeError:
-        base_path = (
-            Path.cwd()
-        )  # Path to the current working directory, equivalent to os.path.abspath(".")
-
-    return base_path / relative_path  # Use the '/' operator to join paths in pathlib
+def resource_path(relative_path: str) -> Path:
+    """Get absolute path to resource (for dev and PyInstaller)"""
+    if hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS) / relative_path
+    return Path(__file__).parent / relative_path
 
 
 # Initialize main window with ttkbootstrap style
@@ -737,14 +758,18 @@ root = ttk.Window("IADS ENTITY SCANNER", "darkly")
 root.resizable(True, True)
 root.geometry("1400x800")
 
-ICON_BITMAP = "logo_TRG.ico"
+ICON_BITMAP = "assets/logo_TRG.ico"
+icon_bitmap: Path = resource_path(ICON_BITMAP)
+print(f"Icon path: {icon_bitmap}")
+
 # Set the window icon
 with contextlib.suppress(TclError):
     root.iconbitmap(ICON_BITMAP)
 
-IMAGE_PATH = "logo_TRG_text.png"
-image_path = resource_path(IMAGE_PATH)
-image = Image.open(IMAGE_PATH).convert("RGBA")
+IMAGE_PATH = "assets/logo_TRG_text.png"
+image_path: Path = resource_path(IMAGE_PATH)
+print(f"Image path: {image_path}")
+image: Image.Image = Image.open(image_path).convert("RGBA")
 
 # Resize the image
 NEW_WIDTH = 350  # Adjust this to make it longer
