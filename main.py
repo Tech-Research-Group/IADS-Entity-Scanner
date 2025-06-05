@@ -33,6 +33,7 @@ files_to_skip = (
     "toc",
 )
 FOLDER_PATH = Path()
+GRAPHIC_TAGS = ("<graphic ", "<icon-set ", "<symbol ", "<authent ", "<back ")
 
 
 def scan_folder_in_background() -> None:
@@ -43,7 +44,7 @@ def scan_folder_in_background() -> None:
     allowing the folder scanning process to occur without blocking the main program flow.
 
     Returns:
-        None
+                    None
     """
     thread = threading.Thread(target=open_iads_dir)
     thread.start()
@@ -57,7 +58,7 @@ def open_iads_dir() -> None:
     FOLDER_PATH variable and calls the scan_iads_folder function to
     process the folder. Finally, it enables the update button.
     Returns:
-        None
+                    None
     """
     textbox.delete("1.0", END)
     global FOLDER_PATH
@@ -81,9 +82,9 @@ def scan_iads_folder(folder_path: Path) -> None:
     the entity files in the provided folder path. It then scans the work package files
     using the updated `ext_entity_dict`.
     Args:
-        FOLDER_PATH (Path): The path to the folder containing the IADS files to be scanned.
+                    FOLDER_PATH (Path): The path to the folder containing the IADS files to be scanned.
     Returns:
-        None
+                    None
     """
     global ext_entity_dict  # pylint: disable=W0603
     ext_entity_dict = scan_entity_files(folder_path)
@@ -94,15 +95,15 @@ def scan_entity_files(folder_path: Path) -> dict:
     """
     Scans a given folder for entity files and extracts external entities from them.
     Args:
-        FOLDER_PATH (Path): The path to the folder containing entity files.
+                    FOLDER_PATH (Path): The path to the folder containing entity files.
     Returns:
-        dict: A dictionary where the keys are the base names of the entity files (without
-              extensions) and the values are lists of external entities extracted from those files.
+                    dict: A dictionary where the keys are the base names of the entity files (without
+                                      extensions) and the values are lists of external entities extracted from those files.
     Notes:
-        - The function looks for files with a ".ent" extension.
-        - It ignores files that do not contain "boilerplate" or "entities" in their path.
-        - The function reads each entity file, processes its content to extract external entities,
-          and stores the results in a dictionary.
+                    - The function looks for files with a ".ent" extension.
+                    - It ignores files that do not contain "boilerplate" or "entities" in their path.
+                    - The function reads each entity file, processes its content to extract external entities,
+                      and stores the results in a dictionary.
     """
     ext_entity_dict = {}
     folder_path = Path(folder_path)
@@ -126,10 +127,10 @@ def scan_work_package_files(folder_path: Path, ext_entity_dict: dict) -> None:
     Scans work package files in the specified folder path for XML files, extracts external entities
     and graphics, and displays them in a textbox widget.
     Args:
-        FOLDER_PATH (Path): The path to the folder containing work package files.
-        ext_entity_dict (dict): A dictionary to store the extracted external entities.
+                    FOLDER_PATH (Path): The path to the folder containing work package files.
+                    ext_entity_dict (dict): A dictionary to store the extracted external entities.
     Returns:
-        None
+                    None
     """
     # Create a progress bar widget
     progress_bar = ttk.Progressbar(root, orient="horizontal", length=300, mode="determinate")
@@ -172,47 +173,55 @@ def scan_work_package_files(folder_path: Path, ext_entity_dict: dict) -> None:
 
                 # Break the file into lines and scan for entities
                 lines = work_package.read().splitlines()
-                scan_lines_for_entities(lines, ext_entity_dict, new_external_entities, new_graphics)
+                if lines == []:
+                    # If the file is empty, skip processing, display empty file message
+                    textbox.tag_configure("red", foreground="red", font="Monaco")
+                    textbox.insert(END, f"Work package {path.name} is empty.\n\n", "red")
+                    continue
+                else:
+                    scan_lines_for_entities(
+                        lines, ext_entity_dict, new_external_entities, new_graphics
+                    )
 
-                # Combine and sort all unique entities (graphics and external entities)
-                total_entities = list(itertools.chain(new_graphics, new_external_entities))
-                sorted_entities = sorted(set(total_entities))
+                    # Combine and sort all unique entities (graphics and external entities)
+                    total_entities = list(itertools.chain(new_graphics, new_external_entities))
+                    sorted_entities = sorted(set(total_entities))
 
-                # Insert each entity into the textbox
-                for entity in sorted_entities:
+                    # Insert each entity into the textbox
+                    for entity in sorted_entities:
 
-                    # Add the selectboil entity declaration if editboil entity is found
-                    if "edit" in entity:
-                        selectboil: str = (
-                            '\t<!ENTITY % select_boilerplate PUBLIC "-//USA-DOD//ENTITIES MIL-STD-40051 Selection Boilerplate REV D 7.0 20220130//EN" '
-                            '"../dtd/boilerplate/selectboil.ent"> %select_boilerplate;'
-                        )
-                        textbox.insert(END, f"{selectboil}\n")
-                        textbox.insert(END, f"{entity}\n")
-                    else:
-                        textbox.insert(END, f"{entity}\n")
-                    # Color-code the entity declarations
-                    # if "<!ENTITY %" in entity:
-                    #     open_tag = entity.split("ENTITY")[0]
-                    #     entity_name = entity.split(
-                    #         "ENTITY % ")[1].strip(" ")
-                    #     textbox.tag_configure(
-                    #         "aqua", foreground="aqua", font="Monaco")
-                    #     textbox.insert(END, f"{open_tag}", "aqua")
-                    #     textbox.tag_configure(
-                    #         "lavender", foreground="lavender", font="Monaco")
-                    #     textbox.insert(END, "ENTITY", "lavender")
-                    #     textbox.tag_configure(
-                    #         "aqua", foreground="aqua", font="Monaco")
-                    #     textbox.insert(END, " % ", "aqua")
-                    #     textbox.tag_configure(
-                    #         "red", foreground="red", font="Monaco")
-                    #     textbox.insert(END, f"{entity_name}", "red")
-                    #     textbox.insert(END, f"{entity}\n", "aqua")
-                    # elif "%" not in entity:
-                    #     textbox.insert(END, f"{entity}\n")
-                textbox.tag_configure("aqua", foreground="aqua", font="Monaco")
-                textbox.insert(END, "]>\n\n", "aqua")
+                        # Add the selectboil entity declaration if editboil entity is found
+                        if "edit" in entity:
+                            selectboil: str = (
+                                '\t<!ENTITY % select_boilerplate PUBLIC "-//USA-DOD//ENTITIES MIL-STD-40051 Selection Boilerplate REV D 7.0 20220130//EN" '
+                                '"../dtd/boilerplate/selectboil.ent"> %select_boilerplate;'
+                            )
+                            textbox.insert(END, f"{selectboil}\n")
+                            textbox.insert(END, f"{entity}\n")
+                        else:
+                            textbox.insert(END, f"{entity}\n")
+                        # Color-code the entity declarations
+                        # if "<!ENTITY %" in entity:
+                        #     open_tag = entity.split("ENTITY")[0]
+                        #     entity_name = entity.split(
+                        #         "ENTITY % ")[1].strip(" ")
+                        #     textbox.tag_configure(
+                        #         "aqua", foreground="aqua", font="Monaco")
+                        #     textbox.insert(END, f"{open_tag}", "aqua")
+                        #     textbox.tag_configure(
+                        #         "lavender", foreground="lavender", font="Monaco")
+                        #     textbox.insert(END, "ENTITY", "lavender")
+                        #     textbox.tag_configure(
+                        #         "aqua", foreground="aqua", font="Monaco")
+                        #     textbox.insert(END, " % ", "aqua")
+                        #     textbox.tag_configure(
+                        #         "red", foreground="red", font="Monaco")
+                        #     textbox.insert(END, f"{entity_name}", "red")
+                        #     textbox.insert(END, f"{entity}\n", "aqua")
+                        # elif "%" not in entity:
+                        #     textbox.insert(END, f"{entity}\n")
+                    textbox.tag_configure("aqua", foreground="aqua", font="Monaco")
+                    textbox.insert(END, "]>\n\n", "aqua")
 
         # Update the progress bar
         progress_bar["value"] = i
@@ -235,12 +244,12 @@ def scan_lines_for_entities(
     Scans a list of lines for graphic tags and external entities, updating the provided lists and
     dictionary.
     Args:
-        lines (list[str]): A list of strings representing lines to be scanned.
-        ext_entity_dict (dict): A dictionary to store external entities found in the lines.
-        new_external_entities (list): A list to store new external entities found in the lines.
-        new_graphics (list): A list to store new graphic tags found in the lines.
+                    lines (list[str]): A list of strings representing lines to be scanned.
+                    ext_entity_dict (dict): A dictionary to store external entities found in the lines.
+                    new_external_entities (list): A list to store new external entities found in the lines.
+                    new_graphics (list): A list to store new graphic tags found in the lines.
     Returns:
-        None
+                    None
     """
     for line in lines:
         process_graphic_tags(line, new_graphics)
@@ -252,19 +261,15 @@ def process_graphic_tags(line: str, new_graphics: list) -> None:
     Processes a line of text to identify and extract graphic tags, then appends
     corresponding ENTITY declarations to the new_graphics list.
     Args:
-        line (str): A line of text potentially containing graphic tags.
-        new_graphics (list): A list to which ENTITY declarations will be
-                                                 appended if graphic tags are found.
+                    line (str): A line of text potentially containing graphic tags.
+                    new_graphics (list): A list to which ENTITY declarations will be
+                                                                                                                                                                                     appended if graphic tags are found.
     Returns:
-        None
+                    None
     """
-    if (
-        "<graphic " in line
-        or "<icon-set " in line
-        or "<symbol " in line
-        or "<authent " in line
-        or "<back " in line
-    ):
+    # Check if the line contains any graphic-related tags
+    if any(tag in line for tag in GRAPHIC_TAGS):
+        # Extract the board number from the line using regex
         boardno = re.findall(r'boardno=[",\'][a-zA-Z0-9_-]+[",\']', line)
         boardno = boardno[0][9:-1]
         if boardno:
@@ -282,12 +287,12 @@ def process_external_entities(
     If any references are found, it retrieves their declarations from the provided
     dictionary and appends them to the list of new external entities.
     Args:
-        line (str): The line of text to be processed.
-        ext_entity_dict (dict): A dictionary containing external entity declarations.
-        new_external_entities (list): A list to which new external entity declarations
-                                      will be appended.
+                    line (str): The line of text to be processed.
+                    ext_entity_dict (dict): A dictionary containing external entity declarations.
+                    new_external_entities (list): A list to which new external entity declarations
+                                                                                                                                      will be appended.
     Returns:
-        None
+                    None
     """
     if "&" in line:
         # Find external entity references (e.g., &entity;)
@@ -305,10 +310,10 @@ def get_entity_declaration(new_external_entity: str, ext_entity_dict: dict) -> O
     """
     Generates an entity declaration string based on the provided external entity name and dictionary.
     Args:
-        new_external_entity (str): The name of the new external entity to be declared.
-        ext_entity_dict (dict): A dictionary containing existing external entities.
+                    new_external_entity (str): The name of the new external entity to be declared.
+                    ext_entity_dict (dict): A dictionary containing existing external entities.
     Returns:
-        Optional[str]: The entity declaration string if the entity is found in the dictionary, otherwise None.
+                    Optional[str]: The entity declaration string if the entity is found in the dictionary, otherwise None.
     """
     entity_mapping = {
         "dimboil": (
@@ -443,9 +448,9 @@ def get_external_entities_from_ent_file(entity_file: list[str]) -> list:
     """
     Extracts external entity names from a list of strings representing an entity file.
     Args:
-        entity_file (list[str]): A list of strings where each string is a line from an entity file.
+                    entity_file (list[str]): A list of strings where each string is a line from an entity file.
     Returns:
-        list: A list of unique external entity names found in the entity file.
+                    list: A list of unique external entity names found in the entity file.
     """
     external_entities = []
     for line in entity_file:
@@ -468,7 +473,7 @@ def print_doctype_declaration(path: Path) -> None:
     - Lavender for the "DOCTYPE" keyword.
     - Red for the opening tag.
     Args:
-        path (str): The file path from which to retrieve the opening tag.
+                    path (str): The file path from which to retrieve the opening tag.
     """
     opening_tag = get_opening_tag(path)
     if opening_tag:
@@ -494,9 +499,9 @@ def get_opening_tag(path: Path) -> Optional[str]:
     """
     Extracts the opening tag from an HTML or XML file.
     Args:
-        path (Path): The file path to the HTML or XML file.
+                    path (Path): The file path to the HTML or XML file.
     Returns:
-        Optional[str]: The opening tag if found, otherwise None.
+                    Optional[str]: The opening tag if found, otherwise None.
     This function reads the content of the specified file and searches for the
     <!DOCTYPE> declaration. If found, it extracts and returns the tag name.
     If no valid opening tag is found, it prints a message and returns None.
@@ -528,7 +533,7 @@ def update_files_in_background() -> None:
     the main program execution.
 
     Returns:
-        None
+                    None
     """
     thread = threading.Thread(target=update_files(FOLDER_PATH, ext_entity_dict))
     thread.start()
@@ -541,10 +546,10 @@ def update_files(folder_path: Path, ext_entity_dict: dict) -> None:
     For each XML file, it processes the file unless it matches any term in the files_to_skip list.
     After processing all files, it displays a success message.
     Args:
-        folder_path (Path): The path to the folder containing XML files to be updated.
-        ext_entity_dict (dict): A dictionary containing external entity definitions to be used in the update process.
+                    folder_path (Path): The path to the folder containing XML files to be updated.
+                    ext_entity_dict (dict): A dictionary containing external entity definitions to be used in the update process.
     Returns:
-        None
+                    None
     """
     doctype_end = "]>"
     xml_tag = '<?xml version="1.0" encoding="UTF-8"?>'
@@ -591,10 +596,10 @@ def should_skip_file(path: Path) -> bool:
     """
     Determines if a file should be skipped based on its name.
     Args:
-        path (Path): The path of the file to check.
+                    path (Path): The path of the file to check.
 
     Returns:
-        bool: True if the file should be skipped, False otherwise.
+                    bool: True if the file should be skipped, False otherwise.
     """
     return any(term in path.name.lower() for term in files_to_skip)
 
@@ -603,12 +608,12 @@ def process_file(path: Path, xml_tag: str, doctype_end: str, ext_entity_dict: di
     """
     Processes an XML file by extracting entities and updating its content.
     Args:
-        path (Path): The path to the XML file to be processed.
-        xml_tag (str): The XML tag to be used in the updated content.
-        doctype_end (str): The ending part of the DOCTYPE declaration.
-        ext_entity_dict (dict): A dictionary containing external entities to be extracted.
+                    path (Path): The path to the XML file to be processed.
+                    xml_tag (str): The XML tag to be used in the updated content.
+                    doctype_end (str): The ending part of the DOCTYPE declaration.
+                    ext_entity_dict (dict): A dictionary containing external entities to be extracted.
     Returns:
-        None
+                    None
     """
     new_graphics, new_external_entities = extract_entities(path, ext_entity_dict)
     doctype_start = (
@@ -634,12 +639,12 @@ def extract_entities(path: Path, ext_entity_dict: dict) -> tuple[list[str], list
     """
     Extracts graphic-related entities and external entity references from a file.
     Args:
-        path (Path): The path to the file to be processed.
-        ext_entity_dict (dict): A dictionary containing external entity definitions.
+                    path (Path): The path to the file to be processed.
+                    ext_entity_dict (dict): A dictionary containing external entity definitions.
     Returns:
-        tuple[list[str], list[str]]: A tuple containing two lists:
-            - new_graphics: A list of strings representing new graphic-related entities.
-            - new_external_entities: A list of strings representing new external entity references.
+                    tuple[list[str], list[str]]: A tuple containing two lists:
+                                    - new_graphics: A list of strings representing new graphic-related entities.
+                                    - new_external_entities: A list of strings representing new external entity references.
     """
     new_graphics = []
     new_external_entities = []
@@ -676,18 +681,17 @@ def is_graphic_line(line: str) -> bool:
     """
     Determines if a given line contains any graphic-related tags.
     Args:
-        line (str): The line of text to be checked.
+                    line (str): The line of text to be checked.
     Returns:
-        bool: True if the line contains any graphic-related tags, False otherwise.
+                    bool: True if the line contains any graphic-related tags, False otherwise.
     Graphic-related tags include:
-        - <graphic
-        - <icon-set
-        - <symbol
-        - <authent
-        - <back
+                    - <graphic
+                    - <icon-set
+                    - <symbol
+                    - <authent
+                    - <back
     """
-    graphic_tags = ["<graphic ", "<icon-set ", "<symbol ", "<authent ", "<back "]
-    return any(tag in line for tag in graphic_tags)
+    return any(tag in line for tag in GRAPHIC_TAGS)
 
 
 def write_updated_file(
@@ -705,49 +709,60 @@ def write_updated_file(
     DOCTYPE start, and DOCTYPE end. It inserts new graphics and external entities in sorted order
     and appends the remaining part of the original file, excluding the old DOCTYPE section.
     Args:
-        path (Path): The path to the file to be written.
-        work_package (list[str]): The original content of the file as a list of strings.
-        xml_tag (str): The XML tag to be written at the beginning of the file.
-        doctype_start (str): The starting tag of the DOCTYPE section.
-        doctype_end (str): The ending tag of the DOCTYPE section.
-        new_graphics (list[str]): A list of new graphics entities to be included.
-        new_external_entities (list[str]): A list of new external entities to be included.
+                    path (Path): The path to the file to be written.
+                    work_package (list[str]): The original content of the file as a list of strings.
+                    xml_tag (str): The XML tag to be written at the beginning of the file.
+                    doctype_start (str): The starting tag of the DOCTYPE section.
+                    doctype_end (str): The ending tag of the DOCTYPE section.
+                    new_graphics (list[str]): A list of new graphics entities to be included.
+                    new_external_entities (list[str]): A list of new external entities to be included.
     Returns:
-        None
+                    None
     """
     with path.open("w", encoding="utf-8") as fout:
-        fout.write(f"{xml_tag}\n{doctype_start}\n")
-        total_entities = list(itertools.chain(new_graphics, new_external_entities))
-        sorted_entities = sorted(set(total_entities))
+        # If the file isn't empty, update the file
+        if "None" not in doctype_start:
+            # Write the XML tag and DOCTYPE start
+            fout.write(f"{xml_tag}\n{doctype_start}\n")
+            total_entities = list(itertools.chain(new_graphics, new_external_entities))
+            sorted_entities = sorted(set(total_entities))
 
-        for entity in sorted_entities:
+            for entity in sorted_entities:
 
-            # Add the selectboil entity declaration if editboil entity is found
-            if "edit" in entity:
-                selectboil: str = (
-                    '\t<!ENTITY % select_boilerplate PUBLIC "-//USA-DOD//ENTITIES MIL-STD-40051 Selection Boilerplate REV D 7.0 20220130//EN" '
-                    '"../dtd/boilerplate/selectboil.ent"> %select_boilerplate;'
-                )
-                fout.write(f"{selectboil}\n")
-                fout.write(f"{entity}\n")
-            else:
-                fout.write(f"{entity}\n")
+                # Add the selectboil entity declaration if editboil entity is found
+                if "edit" in entity:
+                    selectboil: str = (
+                        '\t<!ENTITY % select_boilerplate PUBLIC "-//USA-DOD//ENTITIES MIL-STD-40051 Selection Boilerplate REV D 7.0 20220130//EN" '
+                        '"../dtd/boilerplate/selectboil.ent"> %select_boilerplate;'
+                    )
+                    fout.write(f"{selectboil}\n")
+                    fout.write(f"{entity}\n")
+                else:
+                    fout.write(f"{entity}\n")
 
-        fout.write(f"{doctype_end}\n")
+            fout.write(f"{doctype_end}\n")
 
-        # Write the remaining part of the file (excluding the old DOCTYPE)
-        found_doctype_end = False
-        for line in work_package:
-            if not found_doctype_end:
-                if doctype_end in line:
-                    found_doctype_end = True
-                continue  # Skip lines until DOCTYPE end is found
+            # Write the remaining part of the file (excluding the old DOCTYPE)
+            found_doctype_end = False
+            for line in work_package:
+                if not found_doctype_end:
+                    if doctype_end in line:
+                        found_doctype_end = True
+                    continue  # Skip lines until DOCTYPE end is found
 
-            fout.write(line)
+                fout.write(line)
 
 
 def resource_path(relative_path: str) -> Path:
-    """Get absolute path to resource (for dev and PyInstaller)"""
+    """
+    Returns the absolute path to a resource, given its relative path.
+
+    :param relative_path: The relative path to the resource.
+    :type relative_path: str
+
+    :return: The absolute Path object to the resource.
+    :rtype: Path
+    """
     if hasattr(sys, "_MEIPASS"):
         return Path(sys._MEIPASS) / relative_path
     return Path(__file__).parent / relative_path
