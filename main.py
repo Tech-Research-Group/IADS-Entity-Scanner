@@ -19,47 +19,42 @@ import ttkbootstrap as ttk
 from PIL import Image, ImageTk
 from ttkbootstrap.constants import BOTH, BOTTOM, DISABLED, END, LEFT, TOP, WORD, E, W, X
 
+CHAPTER_TAGS = (
+    "gim",
+    "opim",
+    "tim",
+    "mim",
+    "dim",
+    "pim",
+    "sim",
+    "paper.manual",
+    "production",
+)
 CUSTOM_TBUTTON = "Custom.TButton"
 ext_entity_dict = {}
 files_to_skip = (
     "chap",
     "start",
-    "end",
     "submission",
     "production",
     "catalog",
     "entity",
     "dataset",
     "toc",
+    "999",
 )
 FOLDER_PATH = Path()
 GRAPHIC_TAGS = ("<graphic ", "<icon-set ", "<symbol ", "<authent ", "<back ")
 
 
 def scan_folder_in_background() -> None:
-    """
-    Starts a new thread to scan the IADS directory in the background.
-
-    This function creates and starts a new thread that runs the `open_iads_dir` function,
-    allowing the folder scanning process to occur without blocking the main program flow.
-
-    Returns:
-                    None
-    """
+    """"""
     thread = threading.Thread(target=open_iads_dir)
     thread.start()
 
 
 def open_iads_dir() -> None:
-    """
-    Opens a directory selection dialog for the user to choose a folder,
-    deletes the content of the textbox, and scans the selected folder
-    for IADS files. If a folder is selected, it updates the global
-    FOLDER_PATH variable and calls the scan_iads_folder function to
-    process the folder. Finally, it enables the update button.
-    Returns:
-                    None
-    """
+    """"""
     textbox.delete("1.0", END)
     global FOLDER_PATH
     FOLDER_PATH = Path(filedialog.askdirectory())
@@ -76,35 +71,14 @@ def open_iads_dir() -> None:
 
 
 def scan_iads_folder(folder_path: Path) -> None:
-    """
-    Scans the specified IADS folder for entity and work package files.
-    This function updates the global `ext_entity_dict` with the results of scanning
-    the entity files in the provided folder path. It then scans the work package files
-    using the updated `ext_entity_dict`.
-    Args:
-                    FOLDER_PATH (Path): The path to the folder containing the IADS files to be scanned.
-    Returns:
-                    None
-    """
+    """"""
     global ext_entity_dict  # pylint: disable=W0603
     ext_entity_dict = scan_entity_files(folder_path)
     scan_work_package_files(folder_path, ext_entity_dict)
 
 
 def scan_entity_files(folder_path: Path) -> dict:
-    """
-    Scans a given folder for entity files and extracts external entities from them.
-    Args:
-                    FOLDER_PATH (Path): The path to the folder containing entity files.
-    Returns:
-                    dict: A dictionary where the keys are the base names of the entity files (without
-                                      extensions) and the values are lists of external entities extracted from those files.
-    Notes:
-                    - The function looks for files with a ".ent" extension.
-                    - It ignores files that do not contain "boilerplate" or "entities" in their path.
-                    - The function reads each entity file, processes its content to extract external entities,
-                      and stores the results in a dictionary.
-    """
+    """"""
     ext_entity_dict = {}
     folder_path = Path(folder_path)
 
@@ -123,15 +97,7 @@ def scan_entity_files(folder_path: Path) -> dict:
 
 
 def scan_work_package_files(folder_path: Path, ext_entity_dict: dict) -> None:
-    """
-    Scans work package files in the specified folder path for XML files, extracts external entities
-    and graphics, and displays them in a textbox widget.
-    Args:
-                    FOLDER_PATH (Path): The path to the folder containing work package files.
-                    ext_entity_dict (dict): A dictionary to store the extracted external entities.
-    Returns:
-                    None
-    """
+    """"""
     # Create a progress bar widget
     progress_bar = ttk.Progressbar(root, orient="horizontal", length=300, mode="determinate")
     progress_bar.pack(pady=10)
@@ -166,19 +132,21 @@ def scan_work_package_files(folder_path: Path, ext_entity_dict: dict) -> None:
                 new_external_entities = []
                 new_graphics = []
 
-                # Print path of the work package file in the textbox
-                textbox.tag_configure("path", font=("Arial", 12, "bold"))
-                textbox.insert(END, f"{path.name}\n", "path")
-                print_doctype_declaration(path)
-
-                # Break the file into lines and scan for entities
-                lines = work_package.read().splitlines()
-                if lines == []:
+                if get_opening_tag(path) is None:
                     # If the file is empty, skip processing, display empty file message
-                    textbox.tag_configure("red", foreground="red", font="Monaco")
-                    textbox.insert(END, f"Work package {path.name} is empty.\n\n", "red")
+                    # textbox.tag_configure("red", foreground="red", font="Monaco")
+                    # textbox.insert(END, f"Work package {path.name} is empty.\n\n", "red")
                     continue
+
                 else:
+                    # Print path of the work package file in the textbox
+                    textbox.tag_configure("path", font=("Arial", 12, "bold"))
+                    textbox.insert(END, f"{path.name}\n", "path")
+
+                    print_doctype_declaration(path)
+
+                    # Break the file into lines and scan for entities
+                    lines = work_package.read().splitlines()
                     scan_lines_for_entities(
                         lines, ext_entity_dict, new_external_entities, new_graphics
                     )
@@ -240,33 +208,14 @@ def scan_lines_for_entities(
     new_external_entities: list,
     new_graphics: list,
 ) -> None:
-    """
-    Scans a list of lines for graphic tags and external entities, updating the provided lists and
-    dictionary.
-    Args:
-                    lines (list[str]): A list of strings representing lines to be scanned.
-                    ext_entity_dict (dict): A dictionary to store external entities found in the lines.
-                    new_external_entities (list): A list to store new external entities found in the lines.
-                    new_graphics (list): A list to store new graphic tags found in the lines.
-    Returns:
-                    None
-    """
+    """"""
     for line in lines:
         process_graphic_tags(line, new_graphics)
         process_external_entities(line, ext_entity_dict, new_external_entities)
 
 
 def process_graphic_tags(line: str, new_graphics: list) -> None:
-    """
-    Processes a line of text to identify and extract graphic tags, then appends
-    corresponding ENTITY declarations to the new_graphics list.
-    Args:
-                    line (str): A line of text potentially containing graphic tags.
-                    new_graphics (list): A list to which ENTITY declarations will be
-                                                                                                                                                                                     appended if graphic tags are found.
-    Returns:
-                    None
-    """
+    """"""
     # Check if the line contains any graphic-related tags
     if any(tag in line for tag in GRAPHIC_TAGS):
         # Extract the board number from the line using regex
@@ -281,19 +230,7 @@ def process_graphic_tags(line: str, new_graphics: list) -> None:
 def process_external_entities(
     line: str, ext_entity_dict: dict, new_external_entities: list
 ) -> None:
-    """
-    Processes a line of text to find and handle external entity references.
-    This function searches for external entity references in the provided line of text.
-    If any references are found, it retrieves their declarations from the provided
-    dictionary and appends them to the list of new external entities.
-    Args:
-                    line (str): The line of text to be processed.
-                    ext_entity_dict (dict): A dictionary containing external entity declarations.
-                    new_external_entities (list): A list to which new external entity declarations
-                                                                                                                                      will be appended.
-    Returns:
-                    None
-    """
+    """"""
     if "&" in line:
         # Find external entity references (e.g., &entity;)
         matches = re.findall(r"&([a-zA-Z0-9._-]+);", line)
@@ -307,14 +244,7 @@ def process_external_entities(
 
 
 def get_entity_declaration(new_external_entity: str, ext_entity_dict: dict) -> Optional[str]:
-    """
-    Generates an entity declaration string based on the provided external entity name and dictionary.
-    Args:
-                    new_external_entity (str): The name of the new external entity to be declared.
-                    ext_entity_dict (dict): A dictionary containing existing external entities.
-    Returns:
-                    Optional[str]: The entity declaration string if the entity is found in the dictionary, otherwise None.
-    """
+    """"""
     entity_mapping = {
         "dimboil": (
             "dim_boilerplate",
@@ -445,13 +375,7 @@ def get_entity_declaration(new_external_entity: str, ext_entity_dict: dict) -> O
 
 
 def get_external_entities_from_ent_file(entity_file: list[str]) -> list:
-    """
-    Extracts external entity names from a list of strings representing an entity file.
-    Args:
-                    entity_file (list[str]): A list of strings where each string is a line from an entity file.
-    Returns:
-                    list: A list of unique external entity names found in the entity file.
-    """
+    """"""
     external_entities = []
     for line in entity_file:
         if "<!ENTITY" in line:
@@ -464,17 +388,7 @@ def get_external_entities_from_ent_file(entity_file: list[str]) -> list:
 
 
 def print_doctype_declaration(path: Path) -> None:
-    """
-    Prints the DOCTYPE declaration for a given file path in a formatted manner.
-    This function retrieves the opening tag from the specified file path and prints
-    the DOCTYPE declaration with specific color formatting for different parts of the
-    declaration. The colors used are:
-    - Aqua for the opening caret and the Public ID and DTD path.
-    - Lavender for the "DOCTYPE" keyword.
-    - Red for the opening tag.
-    Args:
-                    path (str): The file path from which to retrieve the opening tag.
-    """
+    """"""
     opening_tag = get_opening_tag(path)
     if opening_tag:
         doctype_tag_end = (
@@ -496,27 +410,29 @@ def print_doctype_declaration(path: Path) -> None:
 
 
 def get_opening_tag(path: Path) -> Optional[str]:
-    """
-    Extracts the opening tag from an HTML or XML file.
-    Args:
-                    path (Path): The file path to the HTML or XML file.
-    Returns:
-                    Optional[str]: The opening tag if found, otherwise None.
-    This function reads the content of the specified file and searches for the
-    <!DOCTYPE> declaration. If found, it extracts and returns the tag name.
-    If no valid opening tag is found, it prints a message and returns None.
-    """
+    """"""
     with open(path, "r", encoding="utf-8") as work_package:
         lines = work_package.read().splitlines(True)
         opening_tag = None  # Initialize opening_tag to None
 
         for line in lines:
-            if line.startswith("<!DOCTYPE"):
-                opening_tag = re.findall(r"([a-zA-Z.]+)", line)
+            if (
+                line.startswith("<")
+                and not line.startswith("<?xml")
+                and not line.startswith("<!")
+                and not line.startswith("</")
+            ):
+                opening_tag = re.findall(r"([a-zA-Z._-]+)", line)[0]
+                # print(opening_tag)
                 break
 
-    if opening_tag and len(opening_tag) >= 2:
-        return opening_tag[1]
+    # Check if the line contains any chapter-related tags
+    if (
+        opening_tag
+        and len(opening_tag) >= 2
+        and not any(chap_tag in line for chap_tag in CHAPTER_TAGS)
+    ):
+        return opening_tag
     else:
         # logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
         # logging.info("No valid opening tag found in %s.", path)
@@ -524,33 +440,13 @@ def get_opening_tag(path: Path) -> Optional[str]:
 
 
 def update_files_in_background() -> None:
-    """
-    Starts a new thread to update files in the background.
-
-    This function creates and starts a new thread that runs the `update_files`
-    function with the specified `FOLDER_PATH` and `ext_entity_dict` arguments.
-    It allows the file update process to run asynchronously without blocking
-    the main program execution.
-
-    Returns:
-                    None
-    """
+    """"""
     thread = threading.Thread(target=update_files(FOLDER_PATH, ext_entity_dict))
     thread.start()
 
 
 def update_files(folder_path: Path, ext_entity_dict: dict) -> None:
-    """
-    Updates XML files in the specified folder and its subdirectories.
-    This function iterates through all XML files in the given folder path and its subdirectories.
-    For each XML file, it processes the file unless it matches any term in the files_to_skip list.
-    After processing all files, it displays a success message.
-    Args:
-                    folder_path (Path): The path to the folder containing XML files to be updated.
-                    ext_entity_dict (dict): A dictionary containing external entity definitions to be used in the update process.
-    Returns:
-                    None
-    """
+    """"""
     doctype_end = "]>"
     xml_tag = '<?xml version="1.0" encoding="UTF-8"?>'
 
@@ -593,28 +489,12 @@ def update_files(folder_path: Path, ext_entity_dict: dict) -> None:
 
 
 def should_skip_file(path: Path) -> bool:
-    """
-    Determines if a file should be skipped based on its name.
-    Args:
-                    path (Path): The path of the file to check.
-
-    Returns:
-                    bool: True if the file should be skipped, False otherwise.
-    """
+    """"""
     return any(term in path.name.lower() for term in files_to_skip)
 
 
 def process_file(path: Path, xml_tag: str, doctype_end: str, ext_entity_dict: dict) -> None:
-    """
-    Processes an XML file by extracting entities and updating its content.
-    Args:
-                    path (Path): The path to the XML file to be processed.
-                    xml_tag (str): The XML tag to be used in the updated content.
-                    doctype_end (str): The ending part of the DOCTYPE declaration.
-                    ext_entity_dict (dict): A dictionary containing external entities to be extracted.
-    Returns:
-                    None
-    """
+    """"""
     new_graphics, new_external_entities = extract_entities(path, ext_entity_dict)
     doctype_start = (
         f"<!DOCTYPE {get_opening_tag(path)} PUBLIC "
@@ -636,16 +516,7 @@ def process_file(path: Path, xml_tag: str, doctype_end: str, ext_entity_dict: di
 
 
 def extract_entities(path: Path, ext_entity_dict: dict) -> tuple[list[str], list[str]]:
-    """
-    Extracts graphic-related entities and external entity references from a file.
-    Args:
-                    path (Path): The path to the file to be processed.
-                    ext_entity_dict (dict): A dictionary containing external entity definitions.
-    Returns:
-                    tuple[list[str], list[str]]: A tuple containing two lists:
-                                    - new_graphics: A list of strings representing new graphic-related entities.
-                                    - new_external_entities: A list of strings representing new external entity references.
-    """
+    """"""
     new_graphics = []
     new_external_entities = []
 
@@ -678,19 +549,7 @@ def extract_entities(path: Path, ext_entity_dict: dict) -> tuple[list[str], list
 
 
 def is_graphic_line(line: str) -> bool:
-    """
-    Determines if a given line contains any graphic-related tags.
-    Args:
-                    line (str): The line of text to be checked.
-    Returns:
-                    bool: True if the line contains any graphic-related tags, False otherwise.
-    Graphic-related tags include:
-                    - <graphic
-                    - <icon-set
-                    - <symbol
-                    - <authent
-                    - <back
-    """
+    """"""
     return any(tag in line for tag in GRAPHIC_TAGS)
 
 
@@ -703,22 +562,7 @@ def write_updated_file(
     new_graphics: list[str],
     new_external_entities: list[str],
 ) -> None:
-    """
-    Writes an updated XML file with new graphics and external entities.
-    This function writes a new XML file at the specified path, including the provided XML tag,
-    DOCTYPE start, and DOCTYPE end. It inserts new graphics and external entities in sorted order
-    and appends the remaining part of the original file, excluding the old DOCTYPE section.
-    Args:
-                    path (Path): The path to the file to be written.
-                    work_package (list[str]): The original content of the file as a list of strings.
-                    xml_tag (str): The XML tag to be written at the beginning of the file.
-                    doctype_start (str): The starting tag of the DOCTYPE section.
-                    doctype_end (str): The ending tag of the DOCTYPE section.
-                    new_graphics (list[str]): A list of new graphics entities to be included.
-                    new_external_entities (list[str]): A list of new external entities to be included.
-    Returns:
-                    None
-    """
+    """"""
     with path.open("w", encoding="utf-8") as fout:
         # If the file isn't empty, update the file
         if "None" not in doctype_start:
@@ -739,11 +583,11 @@ def write_updated_file(
                     fout.write(f"{entity}\n")
                 else:
                     fout.write(f"{entity}\n")
-
             fout.write(f"{doctype_end}\n")
 
             # Write the remaining part of the file (excluding the old DOCTYPE)
             found_doctype_end = False
+
             for line in work_package:
                 if not found_doctype_end:
                     if doctype_end in line:
@@ -754,15 +598,7 @@ def write_updated_file(
 
 
 def resource_path(relative_path: str) -> Path:
-    """
-    Returns the absolute path to a resource, given its relative path.
-
-    :param relative_path: The relative path to the resource.
-    :type relative_path: str
-
-    :return: The absolute Path object to the resource.
-    :rtype: Path
-    """
+    """"""
     if hasattr(sys, "_MEIPASS"):
         return Path(sys._MEIPASS) / relative_path
     return Path(__file__).parent / relative_path
